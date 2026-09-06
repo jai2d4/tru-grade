@@ -1,0 +1,15 @@
+{
+  "version": "1.0-provisional",
+  "note": "Editable provisional values until official plus/minus values are supplied.",
+  "events": {
+    "correct_assignment": 2,
+    "wrong_assignment": -5,
+    "elite_execution": 6,
+    "positive_execution": 3,
+    "neutral_execution": 0,
+    "minor_error": -2,
+    "major_error": -6,
+    "game_changing_positive": 10,
+    "game_changing_negative": -10
+  }
+}
