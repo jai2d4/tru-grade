@@ -307,6 +307,29 @@
   .school-sub{font-size:10px;color:var(--dim);letter-spacing:.04em}
   .mini-stars{display:flex;gap:2px}
   .mini-stars .star{width:12px;height:12px}
+  /* ===== Phase 9 Film Analysis workspace ===== */
+  .film-workspace{max-width:1400px;margin:0 auto;padding:24px 26px 40px}
+  .film-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,.8fr);gap:16px}
+  .film-stack{display:grid;gap:16px;align-content:start}
+  .film-player{position:relative;aspect-ratio:16/9;background:#020307;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+  .film-player video,.film-player canvas{position:absolute;inset:0;width:100%;height:100%}
+  .film-player video{object-fit:contain}.film-player canvas{pointer-events:none}
+  .film-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .film-toolbar .toggle{display:flex;align-items:center;gap:8px;color:var(--dim);font-size:12px}
+  .film-toolbar input[type=checkbox]{width:auto;accent-color:var(--blue)}
+  .progress-track{height:8px;background:#05070b;border:1px solid var(--line);border-radius:20px;overflow:hidden;margin:12px 0 6px}
+  .progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--laser));transition:width .25s}
+  .film-status-line{display:flex;justify-content:space-between;gap:12px;color:var(--dim);font:11px 'IBM Plex Mono'}
+  .compact-list{display:grid;gap:7px;max-height:240px;overflow:auto}
+  .compact-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--dim);cursor:pointer;text-align:left;width:100%}
+  .compact-row:hover,.compact-row.selected{border-color:var(--blue);color:var(--chalk)}
+  .compact-row strong{font:600 12px 'IBM Plex Mono';color:var(--chalk)}
+  .score-lockup{display:flex;align-items:end;gap:16px;margin:8px 0 16px}.score-big{font:700 56px 'Barlow Condensed';line-height:.8;color:var(--blue-2)}
+  .score-caption{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  .trait-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
+  .trait-row b{font-family:'IBM Plex Mono';color:var(--laser)}
+  .film-empty{padding:24px 10px;text-align:center;color:var(--dim);font-size:12px;line-height:1.6}
+  @media(max-width:1000px){.film-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -353,7 +376,7 @@
   </div>
   <div class="sidebar-group-label">The Tool</div>
   <button class="nav-item active" data-view="app" onclick="showView('app')"><svg class="ic"><use href="#ic-helmet"/></svg>Create Profile</button>
-  <button class="nav-item" data-view="app" onclick="showView('app','film')"><svg class="ic"><use href="#ic-upload"/></svg>Film Upload</button>
+  <button class="nav-item" data-view="filmanalysis" onclick="showView('filmanalysis')"><svg class="ic"><use href="#ic-film"/></svg>Film Analysis</button>
   <button class="nav-item" data-view="app" onclick="showView('app','report')"><svg class="ic"><use href="#ic-shield"/></svg>AI Truth Report</button>
 
   <div class="sidebar-group-label">Account</div>
@@ -486,6 +509,49 @@
   </div>
 </div>
 </div><!-- /view-app -->
+
+<!-- ===== FILM ANALYSIS — PHASE 9 ===== -->
+<div class="view" id="view-filmanalysis" hidden>
+  <div class="vh"><div><h1>FILM <span class="accent">ANALYSIS</span></h1><p>Upload game film, track the athlete, verify every play, and inspect the evidence behind the grade.</p></div><span class="soon" style="color:var(--blue-2)">TRUGRADE V2</span></div>
+  <div class="film-workspace">
+    <div class="film-grid">
+      <div class="film-stack">
+        <section class="card">
+          <div class="film-toolbar"><h2 style="margin:0"><svg class="ic"><use href="#ic-upload"/></svg>Upload <span class="accent">Film</span></h2><span class="pill pass">LOCAL BY DEFAULT</span></div>
+          <label class="drop" for="v2FilmInput" tabindex="0"><svg class="ic drop-icon"><use href="#ic-upload"/></svg><div>Choose full game film</div><div class="drop-sub">MP4 · MOV · AVI · MKV · processing continues in background</div></label>
+          <input id="v2FilmInput" type="file" accept=".mp4,.mov,.avi,.mkv,video/*" hidden onchange="v2UploadFilm(this.files[0])">
+          <div class="progress-track"><div class="progress-fill" id="v2Progress"></div></div>
+          <div class="film-status-line"><span id="v2Status">Awaiting film</span><span id="v2Percent">0%</span></div>
+        </section>
+        <section class="card">
+          <div class="film-toolbar"><h2 style="margin:0"><svg class="ic"><use href="#ic-play"/></svg>Video <span class="accent">Player</span></h2><label class="toggle"><input id="v2OverlayToggle" type="checkbox" checked onchange="v2DrawOverlay()"> Tracking overlay</label></div>
+          <div class="film-player"><video id="v2Video" controls playsinline></video><canvas id="v2Overlay"></canvas></div>
+          <div class="film-status-line" style="margin-top:9px"><span id="v2VideoName">No film loaded</span><span id="v2Device">Vision device appears after analysis</span></div>
+        </section>
+        <section class="card"><h2><svg class="ic"><use href="#ic-film"/></svg>Play <span class="accent">Timeline</span></h2><div id="v2Plays" class="compact-list"><div class="film-empty">Analyzed plays will appear here. Select a play to jump to its exact timestamp.</div></div></section>
+        <section class="card"><h2><svg class="ic"><use href="#ic-target"/></svg>Evidence <span class="accent">Panel</span></h2><div id="v2Evidence" class="film-empty">Select a graded trait to inspect contributing plays and timestamps.</div></section>
+      </div>
+      <aside class="film-stack">
+        <section class="card">
+          <h2><svg class="ic"><use href="#ic-users"/></svg>Player <span class="accent">Selection</span></h2>
+          <div id="v2Tracks" class="compact-list"><div class="film-empty">Tracks will appear after detection.</div></div>
+          <div class="subdivider">Confirm jersey assignment</div>
+          <div class="row2"><div class="field"><div class="fbody"><label>Jersey #</label><input id="v2Jersey" inputmode="numeric" maxlength="2" placeholder="12"></div></div><div class="field"><div class="fbody"><label>Position</label><input id="v2Position" placeholder="LB"></div></div></div>
+          <div class="field"><div class="fbody"><label>Player ID or name</label><input id="v2PlayerId" placeholder="Player identifier"></div></div>
+          <div class="field"><div class="fbody"><label>Team / uniform</label><input id="v2Team" placeholder="Red, white, black"></div></div>
+          <button class="btn-solid" style="width:100%;justify-content:center" onclick="v2AssignTrack()"><svg class="ic sm"><use href="#ic-check"/></svg>Confirm Player</button>
+          <div id="v2AssignStatus" class="card-note" style="margin-top:9px"></div>
+        </section>
+        <section class="card">
+          <h2><svg class="ic"><use href="#ic-chart"/></svg>Final <span class="accent">TruGrade</span></h2>
+          <div class="score-lockup"><div class="score-big" id="v2Grade">—</div><div><div class="score-caption">Official game grade</div><div class="stat-val" id="v2Confidence">Confidence —</div></div></div>
+          <div id="v2Traits"><div class="film-empty">Official trait grades appear only after evidence-supported grading.</div></div>
+        </section>
+        <section class="card"><h2><svg class="ic"><use href="#ic-shield"/></svg>Analysis <span class="accent">Job</span></h2><div id="v2JobDetail" class="film-empty">No active job.</div></section>
+      </aside>
+    </div>
+  </div>
+</div>
 
 <!-- ===== LOGIN ===== -->
 <div class="view" id="view-login" hidden>
@@ -814,6 +880,119 @@
 </div><!-- /shell -->
 
 <script>
+const v2State={videoId:null,jobId:null,fileUrl:null,tracks:[],plays:[],assignments:{},selectedTrack:null,poll:null};
+const v2Base=()=>location.port==="5173"?`${location.protocol}//${location.hostname}:8000`:(location.origin.startsWith("http")?location.origin:"http://localhost:8000");
+
+function v2SetProgress(value,status){
+  const percent=Math.max(0,Math.min(100,Number(value)||0));
+  document.getElementById("v2Progress").style.width=percent+"%";
+  document.getElementById("v2Percent").textContent=percent+"%";
+  document.getElementById("v2Status").textContent=status||"Processing";
+}
+
+async function v2Json(url,options){
+  const response=await fetch(url,options), data=await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(data.detail||`HTTP ${response.status}`);
+  return data;
+}
+
+async function v2UploadFilm(file){
+  if(!file)return;
+  if(!/\.(mp4|mov|avi|mkv)$/i.test(file.name)){v2SetProgress(0,"Use an MP4, MOV, AVI, or MKV file.");return;}
+  if(v2State.fileUrl)URL.revokeObjectURL(v2State.fileUrl);
+  v2State.fileUrl=URL.createObjectURL(file);
+  const video=document.getElementById("v2Video"); video.src=v2State.fileUrl;
+  document.getElementById("v2VideoName").textContent=file.name;
+  v2SetProgress(2,"Uploading film in protected chunks…");
+  try{
+    const form=new FormData();form.append("file",file);
+    const uploaded=await v2Json(v2Base()+"/api/videos/upload",{method:"POST",body:form});
+    v2State.videoId=uploaded.video_id;
+    const job=await v2Json(v2Base()+`/api/analysis/start/${uploaded.video_id}`,{method:"POST"});
+    v2State.jobId=job.job_id;
+    v2SetProgress(job.progress,job.message);
+    v2PollJob();
+  }catch(error){v2SetProgress(0,"Upload failed: "+error.message);}
+}
+
+async function v2PollJob(){
+  clearTimeout(v2State.poll);
+  try{
+    const job=await v2Json(v2Base()+`/api/analysis/status/${v2State.jobId}`);
+    v2SetProgress(job.progress,job.message||job.status.replaceAll("_"," "));
+    document.getElementById("v2JobDetail").innerHTML=`<div class="trait-row"><span>Status</span><b>${escapeHtml(job.status)}</b></div><div class="trait-row"><span>Frames</span><b>${job.frame_count??"—"}</b></div><div class="trait-row"><span>Tracks</span><b>${job.track_count??"—"}</b></div>`;
+    if(job.status==="failed")throw new Error(job.error||"Analysis failed");
+    if(job.status==="completed"){await v2LoadResults();return;}
+    v2State.poll=setTimeout(v2PollJob,3000);
+  }catch(error){v2SetProgress(0,"Analysis failed: "+error.message);}
+}
+
+async function v2LoadResults(){
+  const base=v2Base(), id=v2State.videoId;
+  const [trackData,playData]=await Promise.all([
+    v2Json(`${base}/api/videos/${id}/tracks`),v2Json(`${base}/api/videos/${id}/plays`)
+  ]);
+  v2State.tracks=trackData.tracks||[];v2State.assignments=trackData.assignments||{};v2State.plays=playData.plays||[];
+  v2RenderTracks();v2RenderPlays();v2SetProgress(100,"Analysis complete — verify the player and evidence");
+  document.getElementById("v2Video").addEventListener("timeupdate",v2DrawOverlay);
+}
+
+function v2RenderTracks(){
+  const host=document.getElementById("v2Tracks");
+  if(!v2State.tracks.length){host.innerHTML='<div class="film-empty">No player tracks were detected.</div>';return;}
+  host.innerHTML=v2State.tracks.map(track=>{const a=v2State.assignments[String(track.track_id)]||{};return `<button class="compact-row ${v2State.selectedTrack===track.track_id?"selected":""}" onclick="v2SelectTrack(${track.track_id})"><strong>TRACK ${track.track_id}</strong><span>${escapeHtml(a.jersey_number?"#"+a.jersey_number:(track.frames?.length||0)+" frames")}</span></button>`}).join("");
+}
+
+function v2SelectTrack(trackId){
+  v2State.selectedTrack=trackId;const a=v2State.assignments[String(trackId)]||{};
+  document.getElementById("v2Jersey").value=a.jersey_number||"";document.getElementById("v2Position").value=a.position||"";
+  document.getElementById("v2PlayerId").value=a.player_id||"";document.getElementById("v2Team").value=a.team||"";
+  v2RenderTracks();v2DrawOverlay();if(a.player_id)v2LoadGrade(a.player_id);
+}
+
+async function v2AssignTrack(){
+  if(v2State.selectedTrack==null){document.getElementById("v2AssignStatus").textContent="Select a track first.";return;}
+  const payload={player_id:document.getElementById("v2PlayerId").value.trim()||null,jersey_number:document.getElementById("v2Jersey").value.trim(),team:document.getElementById("v2Team").value.trim()||null,position:document.getElementById("v2Position").value.trim()||null,reason:"Human confirmed identity in Film Analysis"};
+  try{
+    const result=await v2Json(`${v2Base()}/api/videos/${v2State.videoId}/tracks/${v2State.selectedTrack}/assign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    v2State.assignments[String(v2State.selectedTrack)]=result;v2RenderTracks();document.getElementById("v2AssignStatus").textContent=`Confirmed Track ${result.track_id} as #${result.jersey_number}.`;
+    if(result.player_id)v2LoadGrade(result.player_id);
+  }catch(error){document.getElementById("v2AssignStatus").textContent="Assignment failed: "+error.message;}
+}
+
+function v2RenderPlays(){
+  const host=document.getElementById("v2Plays");
+  if(!v2State.plays.length){host.innerHTML='<div class="film-empty">No confident play boundaries found. Manual correction will remain available.</div>';return;}
+  host.innerHTML=v2State.plays.map(play=>`<button class="compact-row" onclick="v2Seek(${play.snap_time})"><strong>${escapeHtml(play.play_id)}</strong><span>${play.snap_time.toFixed(1)}s · ${Math.round(play.confidence*100)}% ${play.source}</span></button>`).join("");
+}
+
+function v2Seek(seconds){const video=document.getElementById("v2Video");video.currentTime=seconds;video.play().catch(()=>{});}
+
+function v2DrawOverlay(){
+  const canvas=document.getElementById("v2Overlay"),video=document.getElementById("v2Video"),ctx=canvas.getContext("2d");
+  canvas.width=video.clientWidth;canvas.height=video.clientHeight;ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!document.getElementById("v2OverlayToggle").checked||v2State.selectedTrack==null||!video.videoWidth)return;
+  const track=v2State.tracks.find(item=>item.track_id===v2State.selectedTrack);if(!track)return;
+  const ms=video.currentTime*1000,point=(track.positions||[]).reduce((best,item)=>!best||Math.abs(item.timestamp_ms-ms)<Math.abs(best.timestamp_ms-ms)?item:best,null);if(!point)return;
+  const scale=Math.min(canvas.width/video.videoWidth,canvas.height/video.videoHeight),ox=(canvas.width-video.videoWidth*scale)/2,oy=(canvas.height-video.videoHeight*scale)/2,[x1,y1,x2,y2]=point.bbox;
+  ctx.strokeStyle="#7FB0FF";ctx.lineWidth=3;ctx.shadowColor="#2F7DFF";ctx.shadowBlur=12;ctx.strokeRect(ox+x1*scale,oy+y1*scale,(x2-x1)*scale,(y2-y1)*scale);
+  ctx.fillStyle="#2F7DFF";ctx.shadowBlur=0;ctx.font="600 13px IBM Plex Mono";ctx.fillText(`TRACK ${track.track_id}`,ox+x1*scale,Math.max(14,oy+y1*scale-6));
+}
+
+async function v2LoadGrade(playerId){
+  try{
+    const data=await v2Json(`${v2Base()}/api/players/${encodeURIComponent(playerId)}/grades`),latest=(data.grades||[]).at(-1);
+    if(!latest)return;
+    document.getElementById("v2Grade").textContent=latest.game_grade??"—";document.getElementById("v2Confidence").textContent=`Confidence ${Math.round((latest.confidence||0)*100)}%`;
+    const traits=latest.position_grade?.traits||{};document.getElementById("v2Traits").innerHTML=Object.entries(traits).filter(([,v])=>v).map(([name,value])=>`<button class="compact-row" onclick="v2ShowTrait('${encodeURIComponent(JSON.stringify(value))}')"><span>${escapeHtml(name.replaceAll("_"," "))}</span><strong>${value.score}</strong></button>`).join("")||'<div class="film-empty">No supported trait grades yet.</div>';
+  }catch(error){document.getElementById("v2Traits").innerHTML=`<div class="film-empty">${escapeHtml(error.message)}</div>`;}
+}
+
+function v2ShowTrait(serialized){
+  const trait=JSON.parse(decodeURIComponent(serialized)),host=document.getElementById("v2Evidence");
+  host.innerHTML=(trait.evidence||[]).map(item=>`<button class="compact-row" onclick="v2Seek(${item.timestamp_start})"><strong>${escapeHtml(item.play_id)}</strong><span>${item.timestamp_start.toFixed(1)}s · ${escapeHtml(item.description)}</span></button>`).join("")||'<div class="film-empty">No timestamped evidence was attached to this trait.</div>';
+}
+
 // ===== View router — swaps which <div class="view"> is visible and =====
 // ===== keeps the sidebar's active-state in sync.                    =====
 function showView(id, anchor){

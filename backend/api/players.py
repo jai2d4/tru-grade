@@ -44,6 +44,13 @@ async def get_tracks(video_id: str):
     return {"video_id": video_id, "tracks": tracks, "assignments": assignments}
 
 
+@router.get("/{video_id}/detections")
+async def get_detections(video_id: str):
+    _require_video(video_id)
+    path = storage_root / "vision" / video_id / "detections.json"
+    return {"video_id": video_id, "detections": json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []}
+
+
 @router.post("/{video_id}/tracks/{track_id}/assign")
 async def assign_track(video_id: str, track_id: int, request: AssignmentRequest):
     _require_video(video_id)
@@ -82,4 +89,3 @@ async def save_calibration(video_id: str, calibration: FieldCalibration):
     payload = calibration.model_dump()
     (directory / f"{video_id}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return payload
-

@@ -59,6 +59,12 @@ and game grades, while confidence remains separate. Player grades and their
 evidence-linked events are stored locally and exposed through
 `GET /api/players/{player_id}/grades`.
 
+Phase 9 adds the visible Film Analysis workspace within the existing TruGrade
+shell and design language. It supports long-film upload, live job progress,
+local video playback, selectable tracking overlays, human jersey/player
+confirmation, play-timeline seeking, official trait/game grades, separate
+confidence, and timestamp-linked evidence. Existing pages and styling remain.
+
 On Windows, run `setup_trugrade.bat` once and then `run_trugrade.bat`.
 
 ## Structure
