@@ -4,7 +4,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
 from backend.video.ingestion import VideoStore
 
@@ -24,3 +25,13 @@ async def upload_video(file: UploadFile = File(...)):
 async def list_videos():
     return {"videos": video_store.list()}
 
+
+@router.get("/{video_id}/content")
+async def video_content(video_id: str):
+    metadata = video_store.get(video_id)
+    if not metadata:
+        raise HTTPException(404, "Video not found.")
+    path = Path(metadata["file_path"])
+    if not path.is_file():
+        raise HTTPException(404, "Stored video file is unavailable.")
+    return FileResponse(path, filename=metadata["filename"])

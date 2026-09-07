@@ -19,4 +19,8 @@ for (const required of ["CREATE", "PROFILE", "Film", "AI TRUTH REPORT"]) {
   }
 }
 
+for (const id of ["view-filmanalysis", "v2FilmInput", "v2Video", "v2Overlay", "v2Tracks", "v2Plays", "v2Traits", "v2Evidence"]) {
+  if (!html.includes(`id="${id}"`)) throw new Error(`Phase 9 Film Analysis UI is missing ${id}`);
+}
+
 console.log("TruGrade standalone frontend check passed");
