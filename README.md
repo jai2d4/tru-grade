@@ -52,6 +52,13 @@ including any AI-authored official score. The reasoner requires evidence,
 confidence, timestamp, and reason, and instructs providers to return `unknown`
 instead of guessing. Demo mode makes no external AI request.
 
+Phase 8 connects validated reasoning to the official position rules through an
+editable provisional event-value file. Unsupported traits/events are rejected;
+`unknown` observations are excluded. Only `TruGradeFilmEngine` computes trait
+and game grades, while confidence remains separate. Player grades and their
+evidence-linked events are stored locally and exposed through
+`GET /api/players/{player_id}/grades`.
+
 On Windows, run `setup_trugrade.bat` once and then `run_trugrade.bat`.
 
 ## Structure
