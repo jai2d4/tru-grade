@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.api.videos import storage_root, video_store
 from backend.vision.field_calibration import FieldCalibration, automatic_calibration_unavailable
 from backend.vision.jersey_identifier import TrackIdentity, confirm_identity
+from backend.vision.automatic_identity import EasyOCRJerseyReader, identify_player
 
 
 router = APIRouter(prefix="/api/videos", tags=["players"])
@@ -23,6 +25,13 @@ class AssignmentRequest(BaseModel):
     reason: str = Field(min_length=2)
 
 
+class AutomaticIdentityRequest(BaseModel):
+    jersey_number: str = Field(pattern=r"^[0-9]{1,2}$")
+    school_colors: str = Field(min_length=2)
+    player_id: str | None = None
+    position: str | None = None
+
+
 def _require_video(video_id: str) -> dict:
     video = video_store.get(video_id)
     if not video:
@@ -32,6 +41,54 @@ def _require_video(video_id: str) -> dict:
 
 def _track_path(video_id: str) -> Path:
     return storage_root / "vision" / video_id / "tracks.json"
+
+
+def _identity_path(video_id: str) -> Path:
+    directory = storage_root / "identity"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / f"{video_id}.json"
+
+
+def _run_automatic_identity(video_id: str, request: AutomaticIdentityRequest) -> None:
+    import cv2
+    path = _identity_path(video_id)
+    try:
+        tracks = json.loads(_track_path(video_id).read_text(encoding="utf-8"))
+        manifest_path = storage_root / "frames" / video_id / "frames.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        frames = {}
+        wanted = {point["frame"] for track in tracks for point in track.get("positions", [])}
+        for item in manifest:
+            if item["frame_number"] in wanted:
+                image = cv2.imread(item["file_path"])
+                if image is not None:
+                    frames[item["frame_number"]] = image
+        result = identify_player(
+            request.jersey_number, request.school_colors, tracks, frames, EasyOCRJerseyReader(),
+            min_reads=int(os.getenv("JERSEY_ID_MIN_READS", "2")),
+            threshold=float(os.getenv("JERSEY_ID_CONFIDENCE", ".62")),
+            margin=float(os.getenv("JERSEY_ID_MARGIN", ".12")),
+        )
+        result.update(status_detail="Automatic multi-frame identification completed.",
+                      player_id=request.player_id, position=request.position)
+        if result["selected_track_id"] is not None:
+            assignment_dir = storage_root / "assignments"
+            assignment_dir.mkdir(parents=True, exist_ok=True)
+            assignment_path = assignment_dir / f"{video_id}.json"
+            assignments = json.loads(assignment_path.read_text(encoding="utf-8")) if assignment_path.is_file() else {}
+            key = str(result["selected_track_id"])
+            assignments[key] = {
+                "track_id": result["selected_track_id"], "player_id": request.player_id,
+                "jersey_number": request.jersey_number, "team": request.school_colors,
+                "position": request.position, "candidates": [], "confidence": result["confidence"],
+                "confirmed": False, "source": "automatic_multi_frame",
+                "history": [{"source": "automatic", "reason": "Multi-frame OCR and team-color match."}],
+            }
+            assignment_path.write_text(json.dumps(assignments, indent=2), encoding="utf-8")
+    except Exception as exc:
+        result = {"status": "failed", "status_detail": "Automatic identification failed.",
+                  "error": str(exc), "selected_track_id": None, "confidence": 0}
+    path.write_text(json.dumps(result, indent=2), encoding="utf-8")
 
 
 @router.get("/{video_id}/tracks")
@@ -49,6 +106,28 @@ async def get_detections(video_id: str):
     _require_video(video_id)
     path = storage_root / "vision" / video_id / "detections.json"
     return {"video_id": video_id, "detections": json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []}
+
+
+@router.post("/{video_id}/identify", status_code=202)
+async def start_automatic_identity(video_id: str, request: AutomaticIdentityRequest,
+                                   background_tasks: BackgroundTasks):
+    _require_video(video_id)
+    if not _track_path(video_id).is_file():
+        raise HTTPException(409, "Detection and tracking must complete before identification.")
+    payload = {"status": "processing", "status_detail": "Reading jersey numbers across tracked frames.",
+               "selected_track_id": None, "confidence": 0}
+    _identity_path(video_id).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    background_tasks.add_task(_run_automatic_identity, video_id, request)
+    return payload
+
+
+@router.get("/{video_id}/identify")
+async def automatic_identity_status(video_id: str):
+    _require_video(video_id)
+    path = _identity_path(video_id)
+    if not path.is_file():
+        raise HTTPException(404, "Automatic identification has not started.")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @router.post("/{video_id}/tracks/{track_id}/assign")

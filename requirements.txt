@@ -9,3 +9,4 @@ sqlalchemy[asyncio]>=2.0
 opencv-python>=4.10
 numpy>=1.26
 ultralytics>=8.3
+easyocr>=1.7.2

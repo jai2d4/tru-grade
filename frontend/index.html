@@ -933,8 +933,37 @@ async function v2LoadResults(){
     v2Json(`${base}/api/videos/${id}/tracks`),v2Json(`${base}/api/videos/${id}/plays`)
   ]);
   v2State.tracks=trackData.tracks||[];v2State.assignments=trackData.assignments||{};v2State.plays=playData.plays||[];
-  v2RenderTracks();v2RenderPlays();v2SetProgress(100,"Analysis complete — verify the player and evidence");
+  v2RenderTracks();v2RenderPlays();v2SetProgress(100,"Analysis complete — identifying the requested player");
   document.getElementById("v2Video").addEventListener("timeupdate",v2DrawOverlay);
+  v2StartAutomaticIdentity();
+}
+
+async function v2StartAutomaticIdentity(){
+  const jersey=(document.getElementById("v2Jersey").value||document.getElementById("playerNumber")?.value||"").trim();
+  const colors=(document.getElementById("v2Team").value||document.getElementById("schoolColors")?.value||"").trim();
+  if(!jersey||!colors){document.getElementById("v2AssignStatus").textContent="Enter the player number and school colors to identify automatically.";return;}
+  const payload={jersey_number:jersey,school_colors:colors,player_id:document.getElementById("v2PlayerId").value.trim()||null,position:document.getElementById("v2Position").value.trim()||null};
+  try{
+    await v2Json(`${v2Base()}/api/videos/${v2State.videoId}/identify`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    document.getElementById("v2AssignStatus").textContent=`Searching every tracked frame for #${jersey}…`;
+    v2PollAutomaticIdentity();
+  }catch(error){document.getElementById("v2AssignStatus").textContent="Automatic identification failed: "+error.message;}
+}
+
+async function v2PollAutomaticIdentity(){
+  try{
+    const result=await v2Json(`${v2Base()}/api/videos/${v2State.videoId}/identify`);
+    if(result.status==="processing"){setTimeout(v2PollAutomaticIdentity,3000);return;}
+    if(result.status==="failed")throw new Error(result.error||result.status_detail);
+    if(result.status==="identified"){
+      v2State.selectedTrack=result.selected_track_id;
+      const refreshed=await v2Json(`${v2Base()}/api/videos/${v2State.videoId}/tracks`);
+      v2State.assignments=refreshed.assignments||{};v2RenderTracks();v2DrawOverlay();
+      document.getElementById("v2AssignStatus").textContent=`Automatically identified Track ${result.selected_track_id} at ${Math.round(result.confidence*100)}% confidence. Confirm if correct.`;
+    }else{
+      document.getElementById("v2AssignStatus").textContent="Jersey evidence was uncertain. Select the correct track and confirm—TruGrade did not guess.";
+    }
+  }catch(error){document.getElementById("v2AssignStatus").textContent="Automatic identification failed: "+error.message;}
 }
 
 function v2RenderTracks(){
