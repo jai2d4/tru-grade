@@ -37,8 +37,14 @@ class FootballReasoner:
     def __init__(self, provider: AIProvider):
         self.provider = provider
 
-    async def reason(self, observation: FootballObservation) -> FootballReasoningResult:
-        prompt = SYSTEM_RULE + "\nStructured source observation:\n" + json.dumps(observation.model_dump(mode="json"))
+    async def reason(self, observation: FootballObservation,
+                     allowed_traits: list[str] | None = None) -> FootballReasoningResult:
+        trait_rule = ""
+        if allowed_traits:
+            trait_rule = ("\nUse only these official position traits: "
+                          + ", ".join(allowed_traits)
+                          + ". Do not rename them or invent display-category traits.")
+        prompt = (SYSTEM_RULE + trait_rule + "\nStructured source observation:\n"
+                  + json.dumps(observation.model_dump(mode="json")))
         raw = await self.provider.generate_json(prompt, FootballReasoningResult.model_json_schema())
         return FootballReasoningResult.model_validate(raw)
-

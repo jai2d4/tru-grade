@@ -89,6 +89,12 @@ football detection with persistent ball tracking, body-orientation evidence,
 and player-to-player contact geometry. Proximity is stored only as a contact
 candidate; it is not mislabeled as a tackle or used as an official grade.
 
+Phase 15 builds evidence-linked play observations for the selected track,
+passes them through the provider-neutral reasoning contract, and then lets only
+the deterministic TruGrade engine calculate the official position grade. The
+demo report groups existing official position traits into Field Speed, Contact,
+Play Recognition, Tackling, and Versatility; missing evidence remains unknown.
+
 On Windows, run `setup_trugrade.bat` once and then `run_trugrade.bat`.
 
 ## Structure
