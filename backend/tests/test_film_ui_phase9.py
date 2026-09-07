@@ -4,9 +4,9 @@ from backend.main import app
 
 
 def test_phase9_api_routes_are_registered():
-    # FastAPI can retain included-router metadata alongside concrete routes.
-    # Only concrete routes expose ``path``.
-    paths = {route.path for route in app.routes if hasattr(route, "path")}
+    # FastAPI may retain included routers lazily in ``app.routes``. The OpenAPI
+    # schema is the authoritative flattened list of publicly usable endpoints.
+    paths = set(app.openapi()["paths"])
     assert "/api/videos/upload" in paths
     assert "/api/videos/{video_id}/content" in paths
     assert "/api/videos/{video_id}/tracks" in paths
