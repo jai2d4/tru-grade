@@ -16,11 +16,14 @@ class GradeStore:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def save(self, player_id: str, game_id: str, grade: PositionGrade, events: list) -> dict:
+    def save(self, player_id: str, game_id: str, grade: PositionGrade, events: list,
+             demo_traits: dict | None = None) -> dict:
         payload = {"player_id": player_id, "game_id": game_id,
                    "position_grade": grade.model_dump(mode="json"),
                    "game_grade": grade.grade, "confidence": grade.confidence,
                    "events": [event.model_dump(mode="json") for event in events]}
+        if demo_traits is not None:
+            payload["demo_traits"] = demo_traits
         path = self.root / f"{player_id}.json"
         records = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
         records.append(payload)

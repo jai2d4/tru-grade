@@ -975,6 +975,7 @@ async function v2PollAutomaticIdentity(){
       const refreshed=await v2Json(`${v2Base()}/api/videos/${v2State.videoId}/tracks`);
       v2State.assignments=refreshed.assignments||{};v2RenderTracks();v2DrawOverlay();
       document.getElementById("v2AssignStatus").textContent=`Automatically identified Track ${result.selected_track_id} at ${Math.round(result.confidence*100)}% confidence. Confirm if correct.`;
+      v2StartTruthReport();
     }else{
       document.getElementById("v2AssignStatus").textContent="Jersey evidence was uncertain. Select the correct track and confirm—TruGrade did not guess.";
     }
@@ -1001,7 +1002,39 @@ async function v2AssignTrack(){
     const result=await v2Json(`${v2Base()}/api/videos/${v2State.videoId}/tracks/${v2State.selectedTrack}/assign`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     v2State.assignments[String(v2State.selectedTrack)]=result;v2RenderTracks();document.getElementById("v2AssignStatus").textContent=`Confirmed Track ${result.track_id} as #${result.jersey_number}.`;
     if(result.player_id)v2LoadGrade(result.player_id);
+    v2StartTruthReport();
   }catch(error){document.getElementById("v2AssignStatus").textContent="Assignment failed: "+error.message;}
+}
+
+async function v2StartTruthReport(){
+  if(v2State.selectedTrack==null)return;
+  const jersey=document.getElementById("v2Jersey").value.trim();
+  const playerId=document.getElementById("v2PlayerId").value.trim()||(`jersey-${jersey}`);
+  const position=document.getElementById("v2Position").value.trim();
+  if(!position){document.getElementById("v2Traits").innerHTML='<div class="film-empty">Enter the player position to apply the correct TruGrade rules.</div>';return;}
+  try{
+    await v2Json(`${v2Base()}/api/players/${encodeURIComponent(playerId)}/truth-report`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({video_id:v2State.videoId,track_id:v2State.selectedTrack,position})});
+    document.getElementById("v2Traits").innerHTML='<div class="film-empty">Building the evidence-backed Truth Report…</div>';
+    v2PollTruthReport(playerId);
+  }catch(error){document.getElementById("v2Traits").innerHTML=`<div class="film-empty">${escapeHtml(error.message)}</div>`;}
+}
+
+async function v2PollTruthReport(playerId){
+  try{
+    const job=await v2Json(`${v2Base()}/api/players/${encodeURIComponent(playerId)}/truth-report/${v2State.videoId}`);
+    if(job.status!=="completed"&&job.status!=="failed"){document.getElementById("v2Confidence").textContent=`Report ${job.progress||0}%`;setTimeout(()=>v2PollTruthReport(playerId),3000);return;}
+    if(job.status==="failed")throw new Error(job.error||job.message);
+    v2RenderTruthReport(job.report);
+  }catch(error){document.getElementById("v2Traits").innerHTML=`<div class="film-empty">Truth Report failed: ${escapeHtml(error.message)}</div>`;}
+}
+
+function v2RenderTruthReport(report){
+  document.getElementById("v2Grade").textContent=report.game_grade??"—";
+  document.getElementById("v2Confidence").textContent=`Confidence ${Math.round((report.confidence||0)*100)}%`;
+  const labels={field_speed:"Field Speed",contact:"Contact",play_recognition:"Play Recognition",tackling:"Tackling",versatility:"Versatility"};
+  document.getElementById("v2Traits").innerHTML=Object.entries(report.demo_traits||{}).map(([name,value])=>value.status==="graded"
+    ? `<button class="compact-row" onclick="v2ShowTrait('${encodeURIComponent(JSON.stringify(value))}')"><span>${labels[name]}</span><strong>${value.score}</strong></button>`
+    : `<div class="compact-row"><span>${labels[name]}</span><strong>UNKNOWN</strong></div>`).join("");
 }
 
 function v2RenderPlays(){
