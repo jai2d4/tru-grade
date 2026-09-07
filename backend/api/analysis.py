@@ -13,6 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from backend.api.videos import storage_root, video_store
 from backend.video.frame_extractor import FrameExtractor
 from backend.vision.pipeline import analyze_frames
+from backend.vision.biomechanics import analyze_biomechanics
 from backend.football.play_segmenter import PlaySegmenter
 
 
@@ -80,6 +81,18 @@ async def _extract_job(job_id: str, video: dict) -> None:
             _write_job(job)
         job.update(status="tracking", progress=99, message="Finalizing persistent player tracks.")
         _write_job(job)
+        biomechanics = None
+        if os.getenv("ENABLE_BIOMECHANICS", "false").lower() == "true":
+            job.update(status="biomechanics", progress=0,
+                       message="Estimating player pose, football track, and contact geometry.")
+            _write_job(job)
+            biomechanics_path = vision_dir / "biomechanics.json"
+            biomechanics = _load_json(biomechanics_path)
+            if biomechanics is None:
+                biomechanics = await asyncio.to_thread(
+                    analyze_biomechanics, video["video_id"], frames, tracks,
+                    storage_root / "vision", None, None, vision_progress
+                )
         job.update(status="segmenting_plays", progress=99, message="Estimating play boundaries.")
         _write_job(job)
         plays = PlaySegmenter().segment(video["video_id"], tracks)
@@ -89,7 +102,8 @@ async def _extract_job(job_id: str, video: dict) -> None:
             json.dumps([play.model_dump() for play in plays], indent=2), encoding="utf-8"
         )
         job.update(status="completed", progress=100, detection_frames=len(detections),
-                   track_count=len(tracks), message="Detection and tracking completed.")
+                   track_count=len(tracks), biomechanics=bool(biomechanics),
+                   message="Detection, tracking, and evidence extraction completed.")
     except Exception as exc:
         job.update(status="failed", message="Analysis failed and can be resumed.", error=str(exc))
     job["updated_at"] = datetime.now(timezone.utc).isoformat()
