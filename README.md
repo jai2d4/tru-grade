@@ -77,6 +77,13 @@ selects a track automatically only when repeated readings clear both confidence
 and separation thresholds; otherwise the existing human confirmation workflow
 remains mandatory.
 
+Phase 13 adds four-point perspective calibration, automatic visible-field
+boundary estimation, and track measurements in yards, yards per second, and
+miles per hour. Automatic boundary-based values are explicitly labeled
+estimated; verified absolute yardage requires known field points. Weak or
+incomplete geometry returns a manual-calibration requirement instead of
+invented field-speed metrics.
+
 On Windows, run `setup_trugrade.bat` once and then `run_trugrade.bat`.
 
 ## Structure
