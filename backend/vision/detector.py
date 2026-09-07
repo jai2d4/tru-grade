@@ -17,7 +17,7 @@ class FootballDetector:
         self.model_path = model_path or os.getenv("YOLO_MODEL_PATH", "yolo11n.pt")
         self.confidence = confidence
         self.model = model
-        self.device = "cpu"
+        self.device = os.getenv("TRUGRADE_DEVICE", "auto").strip().lower()
 
     def load_model(self) -> None:
         if self.model is not None:
@@ -25,7 +25,10 @@ class FootballDetector:
         try:
             import torch
             from ultralytics import YOLO
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            if self.device == "auto":
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            if self.device.startswith("cuda") and not torch.cuda.is_available():
+                raise DetectorUnavailable(f"Configured device {self.device!r} is unavailable.")
             self.model = YOLO(self.model_path)
         except Exception as exc:
             raise DetectorUnavailable(f"YOLO could not be loaded: {exc}") from exc
@@ -57,4 +60,3 @@ class FootballDetector:
 
     def detect_batch(self, frames: Iterable[tuple[Any, int, int]]) -> list[dict]:
         return [self.detect_frame(image, number, timestamp) for image, number, timestamp in frames]
-
