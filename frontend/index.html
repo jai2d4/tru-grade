@@ -935,7 +935,22 @@ async function v2LoadResults(){
   v2State.tracks=trackData.tracks||[];v2State.assignments=trackData.assignments||{};v2State.plays=playData.plays||[];
   v2RenderTracks();v2RenderPlays();v2SetProgress(100,"Analysis complete — identifying the requested player");
   document.getElementById("v2Video").addEventListener("timeupdate",v2DrawOverlay);
-  v2StartAutomaticIdentity();
+  v2StartAutomaticIdentity();v2StartAutomaticCalibration();
+}
+
+async function v2StartAutomaticCalibration(){
+  try{
+    const result=await v2Json(`${v2Base()}/api/videos/${v2State.videoId}/calibration/auto`,{method:"POST"});
+    const detail=document.getElementById("v2JobDetail");
+    const label=result.status==="calibrated"
+      ? `Field scale estimated at ${Math.round(result.confidence*100)}% · ${result.tracks_calibrated} tracks measured; confirm field points for verified yards`
+      : "Field needs manual calibration — yard-based speed will remain unknown.";
+    detail.insertAdjacentHTML("beforeend",`<div class="trait-row"><span>Field</span><b>${escapeHtml(label)}</b></div>`);
+    if(result.status==="calibrated"){
+      const refreshed=await v2Json(`${v2Base()}/api/videos/${v2State.videoId}/tracks`);
+      v2State.tracks=refreshed.tracks||v2State.tracks;
+    }
+  }catch(error){document.getElementById("v2JobDetail").insertAdjacentHTML("beforeend",`<div class="trait-row"><span>Field</span><b>Calibration unavailable</b></div>`);}
 }
 
 async function v2StartAutomaticIdentity(){

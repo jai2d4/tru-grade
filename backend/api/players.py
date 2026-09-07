@@ -9,7 +9,10 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.api.videos import storage_root, video_store
-from backend.vision.field_calibration import FieldCalibration, automatic_calibration_unavailable
+from backend.football.movement import movement_metrics
+from backend.vision.field_calibration import (
+    FieldCalibration, automatic_calibration_unavailable, automatic_field_calibration,
+)
 from backend.vision.jersey_identifier import TrackIdentity, confirm_identity
 from backend.vision.automatic_identity import EasyOCRJerseyReader, identify_player
 
@@ -167,4 +170,36 @@ async def save_calibration(video_id: str, calibration: FieldCalibration):
     directory.mkdir(parents=True, exist_ok=True)
     payload = calibration.model_dump()
     (directory / f"{video_id}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
+
+
+@router.post("/{video_id}/calibration/auto")
+async def create_automatic_calibration(video_id: str):
+    import cv2
+    _require_video(video_id)
+    manifest_path = storage_root / "frames" / video_id / "frames.json"
+    if not manifest_path.is_file():
+        raise HTTPException(409, "Frame extraction must complete before calibration.")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not manifest:
+        raise HTTPException(409, "No extracted frames are available.")
+    sample = manifest[len(manifest) // 2]
+    frame = cv2.imread(sample["file_path"])
+    if frame is None:
+        raise HTTPException(409, "The calibration frame is unavailable.")
+    result = automatic_field_calibration(frame)
+    if isinstance(result, dict):
+        return result
+    directory = storage_root / "calibrations"
+    directory.mkdir(parents=True, exist_ok=True)
+    payload = {**result.model_dump(), "status": "calibrated", "sample_frame": sample["frame_number"],
+               "measurement_quality": "estimated",
+               "measurement_note": "Confirm known field points to verify absolute yardage."}
+    (directory / f"{video_id}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tracks_path = _track_path(video_id)
+    tracks = json.loads(tracks_path.read_text(encoding="utf-8")) if tracks_path.is_file() else []
+    for track in tracks:
+        track["movement"] = movement_metrics(track.get("positions", []), result)
+    tracks_path.write_text(json.dumps(tracks, indent=2), encoding="utf-8")
+    payload["tracks_calibrated"] = len(tracks)
     return payload
