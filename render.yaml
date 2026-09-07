@@ -42,3 +42,11 @@ services:
           property: password
       - key: APP_ENV
         value: production
+      - key: ENABLE_BIOMECHANICS
+        value: "true"
+      - key: TRUGRADE_DEVICE
+        value: auto
+      - key: POSE_MODEL_PATH
+        value: yolo11n-pose.pt
+      - key: BALL_MODEL_PATH
+        value: yolo11n.pt

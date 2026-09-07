@@ -111,6 +111,15 @@ async def get_detections(video_id: str):
     return {"video_id": video_id, "detections": json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []}
 
 
+@router.get("/{video_id}/biomechanics")
+async def get_biomechanics(video_id: str):
+    _require_video(video_id)
+    path = storage_root / "vision" / video_id / "biomechanics.json"
+    if not path.is_file():
+        raise HTTPException(404, "Pose, ball, and contact evidence is not available.")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 @router.post("/{video_id}/identify", status_code=202)
 async def start_automatic_identity(video_id: str, request: AutomaticIdentityRequest,
                                    background_tasks: BackgroundTasks):

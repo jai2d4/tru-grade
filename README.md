@@ -84,6 +84,11 @@ estimated; verified absolute yardage requires known field points. Weak or
 incomplete geometry returns a manual-calibration requirement instead of
 invented field-speed metrics.
 
+Phase 14 adds a swappable full-frame pose model, dedicated configurable
+football detection with persistent ball tracking, body-orientation evidence,
+and player-to-player contact geometry. Proximity is stored only as a contact
+candidate; it is not mislabeled as a tackle or used as an official grade.
+
 On Windows, run `setup_trugrade.bat` once and then `run_trugrade.bat`.
 
 ## Structure
