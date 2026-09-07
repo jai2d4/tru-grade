@@ -65,6 +65,12 @@ local video playback, selectable tracking overlays, human jersey/player
 confirmation, play-timeline seeking, official trait/game grades, separate
 confidence, and timestamp-linked evidence. Existing pages and styling remain.
 
+Phase 11 changes film analysis to native frame rate by default, checkpoints
+frame manifests during long extraction, resumes completed extraction and
+vision stages after interruption, and supports explicit CPU/CUDA worker
+selection through `TRUGRADE_DEVICE`. Set `ANALYSIS_FPS` to a number only
+when intentionally generating a lower-cost preview.
+
 On Windows, run `setup_trugrade.bat` once and then `run_trugrade.bat`.
 
 ## Structure
