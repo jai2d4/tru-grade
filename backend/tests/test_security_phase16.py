@@ -7,7 +7,12 @@ import pytest
 
 from app.core.config import get_settings
 from backend.main import app
-from backend.security import Identity, get_identity_provider, require_identity
+from backend.security import (
+    Identity,
+    get_identity_provider,
+    require_identity,
+    validate_identity_configuration,
+)
 
 
 def _configure(monkeypatch, *, environment: str, api_key: str | None) -> None:
@@ -58,8 +63,7 @@ def test_production_refuses_to_start_without_a_usable_api_key(monkeypatch, api_k
     _configure(monkeypatch, environment="production", api_key=api_key)
 
     with pytest.raises(RuntimeError, match="API_KEY must be set"):
-        with TestClient(app):
-            pass
+        validate_identity_configuration()
 
 
 def test_identity_provider_can_be_replaced_without_rewiring_routes(monkeypatch):

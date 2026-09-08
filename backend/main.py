@@ -18,6 +18,11 @@ from backend.health import router as health_router
 from backend.security import require_identity, validate_identity_configuration
 
 
+# Fail before the ASGI server can expose a production deployment. This is an
+# import-time configuration check, so it does not depend on deprecated FastAPI
+# startup-event APIs.
+validate_identity_configuration()
+
 v2_identity = [Depends(require_identity)]
 app.include_router(videos_router, dependencies=v2_identity)
 app.include_router(analysis_router, dependencies=v2_identity)
@@ -25,7 +30,6 @@ app.include_router(players_router, dependencies=v2_identity)
 app.include_router(football_router, dependencies=v2_identity)
 app.include_router(reports_router, dependencies=v2_identity)
 app.include_router(health_router)
-app.add_event_handler("startup", validate_identity_configuration)
 
 
 @app.get("/api/contracts/v1", response_model=ContractDescriptor, tags=["contract"])
