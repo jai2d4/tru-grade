@@ -20,3 +20,5 @@ backend/storage/overrides/*
 backend/storage/evidence/*
 backend/storage/grades/*
 !backend/storage/**/.gitkeep
+node_modules/
+frontend/node_modules/

@@ -53,8 +53,20 @@ jobs:
           POSTGRES_PASSWORD: test
         run: pytest tests backend/tests -v
 
-      - name: Check standalone frontend
-        run: node frontend/scripts/check.mjs
+      # No lockfile is committed yet — run `npm install` once locally and commit
+      # frontend/package-lock.json, then this can become `npm ci`.
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
 
-      - name: Build standalone frontend
-        run: node frontend/scripts/build.mjs
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Test frontend
+        working-directory: frontend
+        run: npm test
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build

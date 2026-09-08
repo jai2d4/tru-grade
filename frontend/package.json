@@ -1,11 +1,31 @@
 {
   "name": "trugrade-frontend",
   "private": true,
-  "version": "2.0.0-phase1",
+  "version": "2.0.0-phase16",
   "type": "module",
   "scripts": {
-    "dev": "python -m http.server 5173",
-    "typecheck": "node scripts/check.mjs",
-    "build": "node scripts/build.mjs"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "6.26.2"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.5.0",
+    "@testing-library/react": "16.0.1",
+    "@testing-library/user-event": "14.5.2",
+    "@types/react": "18.3.10",
+    "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "4.3.1",
+    "jsdom": "25.0.1",
+    "typescript": "5.6.2",
+    "vite": "5.4.8",
+    "vitest": "2.1.1"
   }
 }
