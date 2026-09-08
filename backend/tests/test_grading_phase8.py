@@ -5,14 +5,19 @@ import pytest
 from backend.ai.football_reasoner import FootballReasoningResult
 from backend.football.observations import FootballObservation
 from backend.grading.event_mapper import load_scoring_events, reasoning_to_events
+from backend.grading.models import Evidence
 from backend.grading.service import GradeStore, calculate_official_grade
 
 
 def pair(value="positive_execution", trait="read_react", confidence=.8):
-    source = FootballObservation(observation_id="O1", play_id="P1", player_id="19", position="LB")
+    source = FootballObservation(
+        observation_id="O1", play_id="P1", player_id="19", position="LB",
+        evidence=[Evidence(video_id="V1", play_id="P1", timestamp_start=1,
+                           timestamp_end=2, description="Verified film range")],
+    )
     reasoning = FootballReasoningResult(observations=[{
         "trait": trait, "value": value, "confidence": confidence,
-        "evidence_timestamp": None, "reason": "Observed on structured film evidence",
+        "evidence_timestamp": 1.5, "reason": "Observed on structured film evidence",
     }])
     return source, reasoning
 
@@ -32,7 +37,7 @@ def test_ai_reasoning_becomes_event_then_deterministic_grade():
 
 def test_unknown_is_excluded_from_official_grade():
     grade, events = calculate_official_grade("LB", [pair(value="unknown")])
-    assert events[0].value == 0
+    assert events == []
     assert grade.grade is None
     assert grade.confidence == 0
 
@@ -53,4 +58,3 @@ def test_grade_store_keeps_grade_and_confidence_separate(tmp_path):
     assert payload["game_grade"] == 53
     assert payload["confidence"] == .2
     assert json.loads((tmp_path / "19.json").read_text())[0]["events"][0]["rule_id"].startswith("LB_")
-

@@ -19,7 +19,9 @@ services:
       - key: GEMINI_API_KEY
         sync: false           # paste your key in the Render dashboard after deploy
       - key: API_KEY
-        sync: false           # optional shared secret — set it to lock the app down; leave blank for open access
+        sync: false           # required in production; all private API routes fail closed without it
+      - key: CORS_ALLOW_ORIGINS
+        value: ""             # same-origin only; set an explicit comma-separated allowlist if needed
       - key: POSTGRES_HOST
         fromDatabase:
           name: tru-scouting-db
