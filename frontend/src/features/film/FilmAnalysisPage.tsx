@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import type { TrackAssignment } from "@/api/types";
 import { Icon } from "@/components/IconSprite";
 import { ViewHeader } from "@/components/chrome";
 import { confidencePercent, orDash, seconds } from "@/lib/format";
@@ -193,7 +194,8 @@ export function FilmAnalysisPage() {
               <div className="compact-list">
                 {film.tracks.length ? (
                   film.tracks.map((track) => {
-                    const assigned = film.assignments[String(track.track_id)] ?? {};
+                    const assigned: Partial<TrackAssignment> =
+                      film.assignments[String(track.track_id)] ?? {};
                     return (
                       <button
                         type="button"

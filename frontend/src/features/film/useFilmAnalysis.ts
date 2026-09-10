@@ -394,7 +394,7 @@ export function useFilmAnalysis(videoRef: RefObject<HTMLVideoElement>) {
     (trackId: number) => {
       setSelectedTrack(trackId);
       selectedRef.current = trackId;
-      const a = assignments[String(trackId)] ?? {};
+      const a: Partial<TrackAssignment> = assignments[String(trackId)] ?? {};
       const next: IdentityFields = {
         jersey: a.jersey_number ?? "",
         position: a.position ?? "",
