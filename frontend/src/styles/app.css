@@ -76,6 +76,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:100px;
   padding:6px 13px;font-size:12px;cursor:pointer;font-family:'Inter';transition:border-color .15s,color .15s}
 .chip:hover{color:var(--chalk);border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-glow)}
+.chip.active{color:var(--chalk);background:rgba(47,125,255,.1);border-color:var(--blue)}
 .run{width:100%;margin-top:20px;background:linear-gradient(180deg,var(--chrome-1),var(--chrome-2) 55%,var(--chrome-3));
   border:1px solid var(--line-strong);color:#0B0D11;
   font-family:'Barlow Condensed';font-weight:700;font-size:18px;letter-spacing:.16em;text-transform:uppercase;

@@ -90,6 +90,59 @@ describe("Recruitment Board route", () => {
     expect(watchlistColumn).not.toBeNull();
     expect(within(watchlistColumn as HTMLElement).getByText("1 athlete")).toBeInTheDocument();
   });
+
+  it("creates a real athlete and adds them to the board — the only UI path that populates the roster", async () => {
+    const calls: { url: string; method?: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({ url, method: init?.method });
+        if (url.endsWith("/api/v1/board") && !init) {
+          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) } as Response);
+        }
+        if (url.endsWith("/api/v1/athletes") && init?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 201,
+            json: () =>
+              Promise.resolve({
+                id: "new-1",
+                first_name: "Marcus",
+                last_name: "Lee",
+                position: "WR",
+                created_at: "2026-01-01T00:00:00Z",
+                updated_at: "2026-01-01T00:00:00Z",
+              }),
+          } as Response);
+        }
+        if (url.includes("/api/v1/board/new-1") && init?.method === "PUT") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ athlete_id: "new-1", stage: "watchlist" }),
+          } as Response);
+        }
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) } as Response);
+      }),
+    );
+
+    renderAt("/coach/board");
+    await userEvent.click(await screen.findByRole("button", { name: "+ New Prospect" }));
+    await userEvent.type(screen.getByLabelText("First Name"), "Marcus");
+    await userEvent.type(screen.getByLabelText("Last Name"), "Lee");
+    await userEvent.selectOptions(screen.getByLabelText("Position"), "WR");
+    await userEvent.click(screen.getByRole("button", { name: /create athlete/i }));
+
+    expect(await screen.findByLabelText(/add marcus lee to/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /add to board/i }));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.includes("/api/v1/athletes") && c.method === "POST")).toBe(true),
+    );
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.includes("/api/v1/board/new-1") && c.method === "PUT")).toBe(true),
+    );
+  });
 });
 
 describe("Player Profile route", () => {

@@ -17,6 +17,20 @@ import type {
   LegacyPosition,
 } from "./types";
 
+export interface AthleteCreate {
+  first_name: string;
+  last_name: string;
+  position: LegacyPosition;
+  grad_year?: number | null;
+  school?: string | null;
+  state?: string | null;
+  height_in?: number | null;
+  weight_lbs?: number | null;
+  forty_s?: number | null;
+  shuttle_s?: number | null;
+  gpa?: number | null;
+}
+
 export const athletes = {
   list(params?: { position?: LegacyPosition; limit?: number }): Promise<Athlete[]> {
     const search = new URLSearchParams();
@@ -27,6 +41,9 @@ export const athletes = {
   },
   get(athleteId: string): Promise<Athlete> {
     return request<Athlete>(`/api/v1/athletes/${athleteId}`);
+  },
+  create(body: AthleteCreate): Promise<Athlete> {
+    return request<Athlete>("/api/v1/athletes", json(body, "POST"));
   },
 };
 
