@@ -381,8 +381,9 @@ export interface CoachDashboard {
 }
 
 /** One V2 video where this athlete has a confirmed (or proposed) track
- * identity — see app/routers/athletes.py's /film-links. No grade — that
- * persistence is a separate, not-yet-built increment. */
+ * identity — see app/routers/athletes.py's /film-links. Grades run against
+ * a linked track are a separate list (see FilmGrade below), not part of
+ * this record. */
 export interface FilmLink {
   video_id: string;
   track_id: number;
@@ -394,4 +395,18 @@ export interface FilmLink {
   confidence?: number | null;
   source?: string | null;
   updated_at: string;
+}
+
+/** One deterministic V2 Truth Report grade linked to this athlete — a
+ * best-effort mirror of the local GradeStore, see app/routers/athletes.py's
+ * /grades. video_id is null when the grade didn't come from a real upload
+ * (backend/api/reports.py's lower-level calculate_grade path). */
+export interface FilmGrade {
+  id: string;
+  video_id?: string | null;
+  position: string;
+  game_grade: number | null;
+  confidence?: number | null;
+  demo_traits?: Partial<Record<DemoTraitName, DemoTrait>> | null;
+  created_at: string;
 }

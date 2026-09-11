@@ -174,6 +174,7 @@ describe("Player Profile route", () => {
           updated_at: "2026-01-01T00:00:00Z",
         },
         "/api/v1/athletes/a1/film-links": [],
+        "/api/v1/athletes/a1/grades": [],
         "/api/v1/athletes/a1": {
           id: "a1",
           first_name: "Jordan",
@@ -209,6 +210,7 @@ describe("Player Profile route", () => {
             updated_at: "2026-02-01T00:00:00Z",
           },
         ],
+        "/api/v1/athletes/a1/grades": [],
         "/api/v1/athletes/a1": {
           id: "a1", first_name: "Jordan", last_name: "Williams", position: "DB",
           created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
@@ -220,6 +222,33 @@ describe("Player Profile route", () => {
 
     expect(await screen.findByText("scrimmage.mp4")).toBeInTheDocument();
     expect(screen.getByText(/#12/)).toBeInTheDocument();
+  });
+
+  it("shows real V2 deterministic grades, resolved from the confirmed track — not guessed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByPath({
+        "/api/v1/athletes/a1/notes": [],
+        "/api/v1/athletes/a1/fit-scores": {
+          athlete_id: "a1", scheme_fit: null, culture_fit: null, need_match: null, development: null,
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+        "/api/v1/athletes/a1/film-links": [],
+        "/api/v1/athletes/a1/grades": [
+          { id: "g1", video_id: "v1", position: "DB", game_grade: 71, confidence: 0.65,
+            created_at: "2026-02-01T00:00:00Z" },
+        ],
+        "/api/v1/athletes/a1": {
+          id: "a1", first_name: "Jordan", last_name: "Williams", position: "DB",
+          created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+        },
+      }),
+    );
+
+    renderAt("/coach/player-profile?athleteId=a1");
+
+    expect(await screen.findByText(/71/)).toBeInTheDocument();
+    expect(screen.getByText(/confidence 65%/i)).toBeInTheDocument();
   });
 });
 

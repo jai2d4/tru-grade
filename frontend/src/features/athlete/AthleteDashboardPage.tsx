@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { athletes as athletesApi } from "@/api/coachClient";
-import type { FilmLink } from "@/api/types";
+import type { FilmGrade, FilmLink } from "@/api/types";
 import { Icon } from "@/components/IconSprite";
 import { ViewHeader } from "@/components/chrome";
+import { confidencePercent, orDash } from "@/lib/format";
 import { SelectAthletePrompt } from "./SelectAthletePrompt";
 import { useEvaluations } from "./useEvaluations";
 
@@ -36,6 +37,7 @@ export function AthleteDashboardPage() {
 function Loaded({ athleteId }: { athleteId: string }) {
   const { athlete, evaluationList, error, loading } = useEvaluations(athleteId, null);
   const [filmLinks, setFilmLinks] = useState<FilmLink[] | null>(null);
+  const [grades, setGrades] = useState<FilmGrade[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +48,14 @@ function Loaded({ athleteId }: { athleteId: string }) {
       })
       .catch(() => {
         if (!cancelled) setFilmLinks([]);
+      });
+    athletesApi
+      .grades(athleteId)
+      .then((result) => {
+        if (!cancelled) setGrades(result);
+      })
+      .catch(() => {
+        if (!cancelled) setGrades([]);
       });
     return () => {
       cancelled = true;
@@ -173,6 +183,31 @@ function Loaded({ athleteId }: { athleteId: string }) {
           <p className="card-note">
             No film linked yet — a coach links film through the Film Analysis workspace.
           </p>
+        )}
+      </div>
+
+      <div className="card">
+        <h3>
+          <Icon name="chart" />
+          V2 Grades
+        </h3>
+        {grades === null ? (
+          <p className="card-note">Loading…</p>
+        ) : grades.length > 0 ? (
+          <div className="row-list">
+            {grades.map((grade) => (
+              <div className="row-item" key={grade.id}>
+                <div className="rl">
+                  {grade.position} · {new Date(grade.created_at).toLocaleDateString()}
+                </div>
+                <div className="rv">
+                  {orDash(grade.game_grade)} · {confidencePercent(grade.confidence)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="card-note">No deterministic grades run yet.</p>
         )}
       </div>
     </>

@@ -10,7 +10,7 @@ export default defineConfig({
   },
   // Relative asset URLs so the built bundle works from any mount point the
   // FastAPI app chooses to serve it from.
-  base: "./",
+  base: "/",
   build: { outDir: "dist", emptyOutDir: true, sourcemap: true },
   server: {
     // Phase 15 served the page on :5173 and called the API on :8000. The API

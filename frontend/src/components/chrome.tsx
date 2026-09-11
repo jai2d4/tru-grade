@@ -11,7 +11,7 @@ export function TopBar() {
   return (
     <div className="top">
       <div className="brand">
-        <img className="brand-mark" src="./trugrade-mark.jpg" alt="TruGrade" />
+        <img className="brand-mark" src="/trugrade-mark.jpg" alt="TruGrade" />
         <div className="brand-txt">
           <span className="brand-word">
             <span className="tru">Tru</span>

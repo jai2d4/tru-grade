@@ -81,6 +81,7 @@ describe("Athlete Dashboard route", () => {
       mockFetchByPath({
         "/api/v1/evaluations": [EVALUATION],
         "/api/v1/athletes/a1/film-links": [],
+        "/api/v1/athletes/a1/grades": [],
         "/api/v1/athletes/a1": ATHLETE,
       }),
     );
@@ -103,6 +104,7 @@ describe("Athlete Dashboard route", () => {
             confirmed: true, updated_at: "2026-02-01T00:00:00Z",
           },
         ],
+        "/api/v1/athletes/a1/grades": [],
         "/api/v1/athletes/a1": ATHLETE,
       }),
     );
@@ -110,6 +112,28 @@ describe("Athlete Dashboard route", () => {
     renderAt("/athlete/dashboard?athleteId=a1");
 
     expect(await screen.findByText("scrimmage.mp4")).toBeInTheDocument();
+  });
+
+  it("shows a real V2 deterministic grade, linked the same way as film", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByPath({
+        "/api/v1/evaluations": [EVALUATION],
+        "/api/v1/athletes/a1/film-links": [],
+        "/api/v1/athletes/a1/grades": [
+          {
+            id: "g1", video_id: "v1", position: "DB", game_grade: 62, confidence: 0.8,
+            created_at: "2026-02-01T00:00:00Z",
+          },
+        ],
+        "/api/v1/athletes/a1": ATHLETE,
+      }),
+    );
+
+    renderAt("/athlete/dashboard?athleteId=a1");
+
+    expect(await screen.findByText(/62/)).toBeInTheDocument();
+    expect(screen.getByText(/confidence 80%/i)).toBeInTheDocument();
   });
 });
 

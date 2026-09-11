@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { athletes as athletesApi, coachNotes as notesApi, fitScores as fitScoresApi } from "@/api/coachClient";
-import type { Athlete, CoachFitScores, CoachNote, FilmLink } from "@/api/types";
+import type { Athlete, CoachFitScores, CoachNote, FilmGrade, FilmLink } from "@/api/types";
 import { Icon } from "@/components/IconSprite";
 import { Stars, ViewHeader } from "@/components/chrome";
+import { confidencePercent, orDash } from "@/lib/format";
 
 type FitCategory = "scheme_fit" | "culture_fit" | "need_match" | "development";
 
@@ -55,6 +56,7 @@ function LoadedPlayerProfile({ athleteId }: { athleteId: string }) {
   const [scores, setScores] = useState<CoachFitScores | null>(null);
   const [notes, setNotes] = useState<CoachNote[] | null>(null);
   const [filmLinks, setFilmLinks] = useState<FilmLink[] | null>(null);
+  const [grades, setGrades] = useState<FilmGrade[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,13 +65,14 @@ function LoadedPlayerProfile({ athleteId }: { athleteId: string }) {
     setError(null);
     Promise.all([
       athletesApi.get(athleteId), fitScoresApi.get(athleteId), notesApi.list(athleteId),
-      athletesApi.filmLinks(athleteId),
+      athletesApi.filmLinks(athleteId), athletesApi.grades(athleteId),
     ])
-      .then(([athleteResult, scoresResult, notesResult, filmLinksResult]) => {
+      .then(([athleteResult, scoresResult, notesResult, filmLinksResult, gradesResult]) => {
         setAthlete(athleteResult);
         setScores(scoresResult);
         setNotes(notesResult);
         setFilmLinks(filmLinksResult);
+        setGrades(gradesResult);
       })
       .catch((err: unknown) => {
         setError(
@@ -154,6 +157,14 @@ function LoadedPlayerProfile({ athleteId }: { athleteId: string }) {
                 Linked Film
               </h3>
               <FilmLinksList links={filmLinks ?? []} />
+            </div>
+
+            <div className="card">
+              <h3>
+                <Icon name="chart" />
+                V2 Grades
+              </h3>
+              <GradesList grades={grades ?? []} />
             </div>
           </>
         ) : null}
@@ -293,6 +304,34 @@ function FilmLinksList({ links }: { links: FilmLink[] }) {
             {link.jersey_number ? `#${link.jersey_number}` : "—"}
             {link.team ? ` · ${link.team}` : ""}
             {link.position ? ` · ${link.position}` : ""} · {new Date(link.updated_at).toLocaleDateString()}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GradesList({ grades }: { grades: FilmGrade[] }) {
+  if (grades.length === 0) {
+    return (
+      <p className="card-note">
+        No deterministic grades yet. Run a Truth Report against this athlete's linked film in{" "}
+        <Link to="/film-analysis" style={{ color: "var(--blue-2)" }}>
+          Film Analysis
+        </Link>
+        .
+      </p>
+    );
+  }
+  return (
+    <div className="row-list">
+      {grades.map((grade) => (
+        <div className="row-item" key={grade.id}>
+          <div className="rl">
+            {grade.position} · {new Date(grade.created_at).toLocaleDateString()}
+          </div>
+          <div className="rv">
+            {orDash(grade.game_grade)} · {confidencePercent(grade.confidence)}
           </div>
         </div>
       ))}
