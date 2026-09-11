@@ -3,15 +3,11 @@ import { AppShell } from "@/components/AppShell";
 import { CreateProfilePage } from "@/features/profile/CreateProfilePage";
 import { FilmAnalysisPage } from "@/features/film/FilmAnalysisPage";
 import { AccountSettingsPage, CreateAccountPage, LoginPage } from "@/pages/account";
-import {
-  AiFilmReportPage,
-  AthleteDashboardPage,
-  OfferProbabilityPage,
-  PublicRatingPage,
-  RecruitingActivityPage,
-  TraitBreakdownPage,
-} from "@/pages/athlete";
+import { OfferProbabilityPage, PublicRatingPage, RecruitingActivityPage } from "@/pages/athlete";
 import { Coach360ReportPage, GenesisSearchPage } from "@/pages/coach";
+import { AiFilmReportPage } from "@/features/athlete/AiFilmReportPage";
+import { AthleteDashboardPage } from "@/features/athlete/AthleteDashboardPage";
+import { TraitBreakdownPage } from "@/features/athlete/TraitBreakdownPage";
 import { CoachDashboardPage } from "@/features/coach/CoachDashboardPage";
 import { PlayerProfilePage } from "@/features/coach/PlayerProfilePage";
 import { RecruitmentBoardPage } from "@/features/coach/RecruitmentBoardPage";

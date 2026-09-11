@@ -13,6 +13,7 @@ import type {
   CoachDashboard,
   CoachFitScores,
   CoachNote,
+  Evaluation,
   LegacyPosition,
 } from "./types";
 
@@ -82,5 +83,15 @@ export const fitScores = {
 export const coachDashboard = {
   get(): Promise<CoachDashboard> {
     return request<CoachDashboard>("/api/v1/coach/dashboard");
+  },
+};
+
+/** Module 5 — Truth Report history, unchanged by Module 7. */
+export const evaluations = {
+  list(athleteId: string, limit = 50): Promise<Evaluation[]> {
+    return request<Evaluation[]>(`/api/v1/evaluations?athlete_id=${athleteId}&limit=${limit}`);
+  },
+  get(evaluationId: string): Promise<Evaluation> {
+    return request<Evaluation>(`/api/v1/evaluations/${evaluationId}`);
   },
 };

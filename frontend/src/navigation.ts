@@ -42,9 +42,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Athlete",
     items: [
-      { label: "Dashboard", to: "/athlete/dashboard", icon: "home", soon: true },
-      { label: "AI Film Report", to: "/athlete/film-report", icon: "film", soon: true },
-      { label: "Trait Breakdown", to: "/athlete/traits", icon: "star", soon: true },
+      { label: "Dashboard", to: "/athlete/dashboard", icon: "home" },
+      { label: "AI Film Report", to: "/athlete/film-report", icon: "film" },
+      { label: "Trait Breakdown", to: "/athlete/traits", icon: "star" },
       { label: "Recruiting Activity", to: "/athlete/recruiting", icon: "bell", soon: true },
       { label: "Offer Probability", to: "/athlete/offers", icon: "target", soon: true },
       { label: "Public Rating", to: "/athlete/public-rating", icon: "link", soon: true },

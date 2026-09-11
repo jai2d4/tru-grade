@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { athletes, board, coachDashboard, coachNotes, fitScores, teamNeeds } from "@/api/coachClient";
+import { athletes, board, coachDashboard, coachNotes, evaluations, fitScores, teamNeeds } from "@/api/coachClient";
 
 /**
  * These assert the exact method, path and body the Module 7 FastAPI routers
@@ -137,5 +137,19 @@ describe("coach dashboard", () => {
     vi.stubGlobal("fetch", mockJson({ total_athletes: 0 }));
     await coachDashboard.get();
     expect(calls[0]!.url).toBe(`${base}/api/v1/coach/dashboard`);
+  });
+});
+
+describe("evaluations", () => {
+  it("lists Truth Report history for an athlete", async () => {
+    vi.stubGlobal("fetch", mockJson([]));
+    await evaluations.list("a1");
+    expect(calls[0]!.url).toBe(`${base}/api/v1/evaluations?athlete_id=a1&limit=50`);
+  });
+
+  it("gets one evaluation by id", async () => {
+    vi.stubGlobal("fetch", mockJson({ id: "e1" }));
+    await evaluations.get("e1");
+    expect(calls[0]!.url).toBe(`${base}/api/v1/evaluations/e1`);
   });
 });

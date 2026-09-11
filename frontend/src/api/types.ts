@@ -317,15 +317,53 @@ export interface CoachFitScores {
   updated_at: string;
 }
 
+/** One row of app/services/metric_sieve.py's hard-threshold table. */
+export interface MetricCheck {
+  metric: string;
+  athlete_value?: number | null;
+  threshold: string;
+  /** null = data missing, not failed. */
+  passed?: boolean | null;
+}
+
+/** app/models/schemas.py SieveResult, as persisted verbatim on the evaluation. */
+export interface MetricSieveResults {
+  position: LegacyPosition;
+  tier: string;
+  checks: MetricCheck[];
+  hard_metrics_passed: boolean;
+  qualifying_tiers?: string[];
+  is_game_changer: boolean;
+  game_changer_reason?: string | null;
+}
+
+/** app/models/schemas.py GradeDown. */
+export interface GradeDown {
+  overall: MakeupRank;
+  p4: MakeupRank;
+  group_of_5: MakeupRank;
+  fcs: MakeupRank;
+  d2_d3_naia_juco: MakeupRank;
+}
+
 export interface Evaluation {
   id: string;
   athlete_id: string;
+  film_id?: string | null;
   position_evaluated: LegacyPosition;
   projected_tier?: string | null;
   qualifying_tiers: string[];
+  metric_sieve_results?: MetricSieveResults | null;
   is_game_changer: boolean;
   game_changer_reason?: string | null;
-  makeup_grade_down?: Record<string, unknown> | null;
+  makeup_grades?: Record<string, MakeupRank | null> | null;
+  makeup_grade_down?: GradeDown | null;
+  player_identifier?: string | null;
+  player_identified?: boolean | null;
+  identification_note?: string | null;
+  film_grades?: Record<string, MakeupRank | string> | null;
+  film_flags?: string[] | null;
+  model_used?: string;
   created_at: string;
 }
 
