@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "@/App";
 
@@ -136,5 +137,53 @@ describe("Player Profile route", () => {
     expect(await screen.findByRole("heading", { name: "Jordan Williams" })).toBeInTheDocument();
     expect(await screen.findByText("Great tape.")).toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByText(/not yet rated/i).length).toBeGreaterThan(0));
+  });
+});
+
+describe("Genesis Search route", () => {
+  it("says up front it is structured filtering, not natural language, before any search", () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    renderAt("/coach/genesis");
+
+    expect(screen.getByText(/not natural language yet/i)).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("filters the real roster by name on search", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByPath({
+        "/api/v1/athletes": [
+          {
+            id: "a1",
+            first_name: "Jordan",
+            last_name: "Williams",
+            position: "DB",
+            school: "Westview High",
+            grad_year: 2027,
+            gpa: 3.5,
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+          },
+          {
+            id: "a2",
+            first_name: "Marcus",
+            last_name: "Lee",
+            position: "WR",
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    renderAt("/coach/genesis");
+    await userEvent.type(screen.getByLabelText("Name"), "Jordan");
+    await userEvent.click(screen.getByRole("button", { name: /search roster/i }));
+
+    expect(await screen.findByText("Jordan Williams")).toBeInTheDocument();
+    expect(screen.queryByText("Marcus Lee")).not.toBeInTheDocument();
   });
 });

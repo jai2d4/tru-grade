@@ -57,7 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Recruitment Board", to: "/coach/board", icon: "users" },
       { label: "Player Profile", to: "/coach/player-profile", icon: "user" },
       { label: "Coach 360 Report", to: "/coach/360-report", icon: "brain", soon: true },
-      { label: "Genesis Search", to: "/coach/genesis", icon: "search", soon: true },
+      { label: "Genesis Search", to: "/coach/genesis", icon: "search" },
     ],
   },
 ];
