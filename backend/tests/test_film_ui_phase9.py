@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from backend.main import app
 
 
@@ -15,13 +13,13 @@ def test_phase9_api_routes_are_registered():
     assert "/api/players/{player_id}/grades" in paths
 
 
-def test_phase9_ui_preserves_existing_app_and_adds_workspace():
-    html = (Path(__file__).parents[2] / "frontend" / "index.html").read_text(encoding="utf-8")
-    for existing in ("Create Profile", "AI TRUTH REPORT", "Dashboard", "Recruitment Board"):
-        assert existing in html
-    for addition in ("FILM ANALYSIS", "Tracking overlay"):
-        assert addition in html
-    # These headings contain styled spans, so assert their stable workspace IDs
-    # instead of expecting the rendered words to be contiguous in source HTML.
-    for workspace_id in ('id="v2Plays"', 'id="v2Evidence"', 'id="v2Grade"'):
-        assert workspace_id in html
+# test_phase9_ui_preserves_existing_app_and_adds_workspace used to live here,
+# asserting literal strings ("Create Profile", 'id="v2Plays"', etc.) against
+# frontend/index.html. The Phase 16 migration (cab29e9) replaced that file
+# with a bare Vite shell — every screen, including the Film Analysis
+# workspace this test was written for, now renders from React components
+# instead. The assertion has failed on every branch descended from that
+# migration ever since (it never causes a merge conflict, so nothing forced
+# anyone to notice or update it). Real coverage for this UI now lives in
+# frontend/tests/routes.test.tsx ("Film Analysis route"), which asserts
+# against the actual rendered DOM rather than the pre-build source file.
