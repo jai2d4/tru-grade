@@ -218,3 +218,19 @@ class CoachDashboard(BaseModel):
     board_counts: dict[str, int]
     team_needs: list[TeamNeedOut]
     recent_evaluations: list[EvaluationOut] = []
+
+
+class FilmLinkOut(BaseModel):
+    """One video where this athlete has a confirmed (or proposed) track
+    identity — see backend/api/players.py and the film_track_assignments
+    schema comment for what this does and doesn't cover."""
+    video_id: UUID
+    track_id: int
+    filename: str
+    jersey_number: Optional[str] = None
+    team: Optional[str] = None
+    position: Optional[str] = None
+    confirmed: bool
+    confidence: Optional[float] = None
+    source: Optional[str] = None
+    updated_at: datetime

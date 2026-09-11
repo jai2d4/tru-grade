@@ -107,3 +107,30 @@ def test_reassigning_a_track_upserts_instead_of_duplicating(client):
 
     tracks = client.get(f"/api/videos/{video_id}/tracks").json()
     assert len(tracks["assignments"]) == 1
+
+
+def test_athlete_film_links_lists_only_that_athletes_confirmed_video(client):
+    linked_video = _upload_video(client)
+    other_video = _upload_video(client)
+    athlete_id = _make_athlete(client)
+    other_athlete_id = _make_athlete(client, first_name="Marcus", last_name="Lee")
+    _seed_track(client, linked_video)
+    _seed_track(client, other_video)
+
+    client.post(f"/api/videos/{linked_video}/tracks/1/assign",
+                json={"athlete_id": athlete_id, "jersey_number": "12", "reason": "Confirmed"})
+    client.post(f"/api/videos/{other_video}/tracks/1/assign",
+                json={"athlete_id": other_athlete_id, "jersey_number": "7", "reason": "Different athlete"})
+
+    response = client.get(f"/api/v1/athletes/{athlete_id}/film-links")
+    assert response.status_code == 200
+    links = response.json()
+    assert len(links) == 1
+    assert links[0]["video_id"] == linked_video
+    assert links[0]["filename"] == "game.mp4"
+    assert links[0]["jersey_number"] == "12"
+
+
+def test_film_links_404s_for_an_athlete_that_does_not_exist(client):
+    response = client.get("/api/v1/athletes/00000000-0000-0000-0000-000000000000/film-links")
+    assert response.status_code == 404
