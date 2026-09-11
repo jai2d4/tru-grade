@@ -143,6 +143,53 @@ CREATE TABLE IF NOT EXISTS coach_fit_scores (
 );
 
 -- ------------------------------------------------------------
+-- Unifying the V2 film pipeline (backend/api/*) with the athlete roster.
+--
+-- film_uploads already existed (Module 1) but nothing ever wrote to it —
+-- the legacy truth-report flow never set film_id, and the V2 vision
+-- pipeline (backend/video/ingestion.py) kept its own video metadata in a
+-- local JSON file instead. A V2 video's id now *is* a film_uploads.id
+-- (backend/api/videos.py sets it explicitly rather than letting Postgres
+-- generate one), so "which video" and "which athlete" live in the same
+-- table regardless of which pipeline created the row. 'uploaded' is V2's
+-- initial status, absent from the original check because nothing used it.
+--
+-- Only *identity* moves to Postgres here — the frame-by-frame track
+-- geometry (bounding boxes per frame) stays in local files under
+-- backend/storage/. That split matches the roadmap's own "local artifact
+-- adapter for development, durable object storage for production" plan
+-- for heavy media data; a relational table for per-frame pixel
+-- coordinates would be the wrong tool regardless of "one data model."
+-- ------------------------------------------------------------
+ALTER TABLE film_uploads DROP CONSTRAINT IF EXISTS film_uploads_status_check;
+ALTER TABLE film_uploads ADD CONSTRAINT film_uploads_status_check
+    CHECK (status IN ('pending','uploaded','processing','analyzed','failed'));
+
+CREATE TABLE IF NOT EXISTS film_track_assignments (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    video_id        UUID NOT NULL REFERENCES film_uploads(id) ON DELETE CASCADE,
+    track_id        INTEGER NOT NULL,
+    -- The real link this table exists for. Null until a coach confirms a
+    -- track against a roster athlete — automatic identification proposes a
+    -- jersey number and team color match, never a roster link by itself.
+    athlete_id      UUID REFERENCES athletes(id) ON DELETE SET NULL,
+    player_id       TEXT,                    -- free-text identifier when there's no roster match yet
+    jersey_number   VARCHAR(4),
+    team            VARCHAR(128),
+    position        VARCHAR(8),
+    confidence      DOUBLE PRECISION,
+    confirmed       BOOLEAN NOT NULL DEFAULT FALSE,
+    source          VARCHAR(32),             -- 'manual' | 'automatic_multi_frame'
+    candidates      JSONB NOT NULL DEFAULT '[]'::jsonb,
+    history         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (video_id, track_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_film_track_athlete ON film_track_assignments (athlete_id);
+CREATE INDEX IF NOT EXISTS idx_film_track_video ON film_track_assignments (video_id);
+
+-- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,
 -- best to worst: GAME_CHANGER, ALL_CONF, WIN_PLUS, WIN, WIN_MINUS, NGE.

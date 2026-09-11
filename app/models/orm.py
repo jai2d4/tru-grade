@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    ARRAY, Boolean, CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, func,
+    ARRAY, Boolean, CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -56,7 +56,10 @@ class FilmUpload(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        CheckConstraint("status IN ('pending','processing','analyzed','failed')", name="film_uploads_status_check"),
+        CheckConstraint(
+            "status IN ('pending','uploaded','processing','analyzed','failed')",
+            name="film_uploads_status_check",
+        ),
     )
 
 
@@ -155,3 +158,30 @@ class CoachFitScore(Base):
         CheckConstraint("need_match IS NULL OR need_match BETWEEN 1 AND 5", name="fit_need_check"),
         CheckConstraint("development IS NULL OR development BETWEEN 1 AND 5", name="fit_development_check"),
     )
+
+
+class FilmTrackAssignment(Base):
+    """Links the V2 vision pipeline (backend/api/*) to the same athlete
+    roster everything else reads from. video_id is a film_uploads.id — see
+    the schema comment in db/init_schema.sql for why that table is reused
+    rather than a new one. athlete_id is the real link, set only once a
+    coach confirms a tracked player against the roster; automatic
+    identification alone never sets it."""
+    __tablename__ = "film_track_assignments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("film_uploads.id", ondelete="CASCADE"), nullable=False)
+    track_id: Mapped[int] = mapped_column(nullable=False)
+    athlete_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("athletes.id", ondelete="SET NULL"))
+    player_id: Mapped[str | None] = mapped_column(Text)
+    jersey_number: Mapped[str | None] = mapped_column(String(4))
+    team: Mapped[str | None] = mapped_column(String(128))
+    position: Mapped[str | None] = mapped_column(String(8))
+    confidence: Mapped[float | None]
+    confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    source: Mapped[str | None] = mapped_column(String(32))
+    candidates: Mapped[list | None] = mapped_column(JSONB, default=list, server_default="[]")
+    history: Mapped[list | None] = mapped_column(JSONB, default=list, server_default="[]")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("video_id", "track_id", name="film_track_assignments_video_track_key"),)
