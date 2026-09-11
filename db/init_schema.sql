@@ -102,6 +102,47 @@ CREATE INDEX IF NOT EXISTS idx_eval_athlete ON evaluations (athlete_id);
 CREATE INDEX IF NOT EXISTS idx_eval_game_changer ON evaluations (is_game_changer) WHERE is_game_changer;
 
 -- ------------------------------------------------------------
+-- Module 7: Coach Recruitment Board
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS board_entries (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    athlete_id      UUID NOT NULL UNIQUE REFERENCES athletes(id) ON DELETE CASCADE,
+    stage           VARCHAR(16) NOT NULL DEFAULT 'watchlist'
+                    CHECK (stage IN ('watchlist','evaluating','offer_board','development','follow_up')),
+    notes           TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_stage ON board_entries (stage);
+
+CREATE TABLE IF NOT EXISTS team_needs (
+    id              SERIAL PRIMARY KEY,
+    position        VARCHAR(4) NOT NULL UNIQUE,
+    priority        SMALLINT NOT NULL DEFAULT 3 CHECK (priority BETWEEN 1 AND 5),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS coach_notes (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    athlete_id      UUID NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    author          VARCHAR(128),
+    note            TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_coach_notes_athlete ON coach_notes (athlete_id);
+
+CREATE TABLE IF NOT EXISTS coach_fit_scores (
+    athlete_id      UUID PRIMARY KEY REFERENCES athletes(id) ON DELETE CASCADE,
+    scheme_fit      SMALLINT CHECK (scheme_fit IS NULL OR scheme_fit BETWEEN 1 AND 5),
+    culture_fit     SMALLINT CHECK (culture_fit IS NULL OR culture_fit BETWEEN 1 AND 5),
+    need_match      SMALLINT CHECK (need_match IS NULL OR need_match BETWEEN 1 AND 5),
+    development     SMALLINT CHECK (development IS NULL OR development BETWEEN 1 AND 5),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,
 -- best to worst: GAME_CHANGER, ALL_CONF, WIN_PLUS, WIN, WIN_MINUS, NGE.

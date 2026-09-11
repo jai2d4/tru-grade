@@ -116,6 +116,77 @@ class GradeDown(BaseModel):
     d2_d3_naia_juco: Rank
 
 
+class BoardStage(str, Enum):
+    WATCHLIST = "watchlist"
+    EVALUATING = "evaluating"
+    OFFER_BOARD = "offer_board"
+    DEVELOPMENT = "development"
+    FOLLOW_UP = "follow_up"
+
+
+class BoardEntryIn(BaseModel):
+    stage: BoardStage
+    notes: Optional[str] = None
+
+
+class BoardEntryOut(BaseModel):
+    athlete_id: UUID
+    stage: BoardStage
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    position: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TeamNeedIn(BaseModel):
+    priority: int = Field(..., ge=1, le=5)
+
+
+class TeamNeedOut(BaseModel):
+    position: Position
+    priority: int
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CoachNoteIn(BaseModel):
+    note: str = Field(..., min_length=1)
+    author: Optional[str] = None
+
+
+class CoachNoteOut(BaseModel):
+    id: UUID
+    athlete_id: UUID
+    author: Optional[str] = None
+    note: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CoachFitScoresIn(BaseModel):
+    scheme_fit: Optional[int] = Field(None, ge=1, le=5)
+    culture_fit: Optional[int] = Field(None, ge=1, le=5)
+    need_match: Optional[int] = Field(None, ge=1, le=5)
+    development: Optional[int] = Field(None, ge=1, le=5)
+
+
+class CoachFitScoresOut(CoachFitScoresIn):
+    athlete_id: UUID
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class EvaluationOut(BaseModel):
     id: UUID
     athlete_id: UUID
@@ -139,3 +210,11 @@ class EvaluationOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CoachDashboard(BaseModel):
+    total_athletes: int
+    total_evaluations: int
+    board_counts: dict[str, int]
+    team_needs: list[TeamNeedOut]
+    recent_evaluations: list[EvaluationOut] = []
