@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { athletes as athletesApi, coachNotes as notesApi, fitScores as fitScoresApi } from "@/api/coachClient";
-import type { Athlete, CoachFitScores, CoachNote } from "@/api/types";
+import type { Athlete, CoachFitScores, CoachNote, FilmLink } from "@/api/types";
 import { Icon } from "@/components/IconSprite";
 import { Stars, ViewHeader } from "@/components/chrome";
 
@@ -54,17 +54,22 @@ function LoadedPlayerProfile({ athleteId }: { athleteId: string }) {
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [scores, setScores] = useState<CoachFitScores | null>(null);
   const [notes, setNotes] = useState<CoachNote[] | null>(null);
+  const [filmLinks, setFilmLinks] = useState<FilmLink[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    Promise.all([athletesApi.get(athleteId), fitScoresApi.get(athleteId), notesApi.list(athleteId)])
-      .then(([athleteResult, scoresResult, notesResult]) => {
+    Promise.all([
+      athletesApi.get(athleteId), fitScoresApi.get(athleteId), notesApi.list(athleteId),
+      athletesApi.filmLinks(athleteId),
+    ])
+      .then(([athleteResult, scoresResult, notesResult, filmLinksResult]) => {
         setAthlete(athleteResult);
         setScores(scoresResult);
         setNotes(notesResult);
+        setFilmLinks(filmLinksResult);
       })
       .catch((err: unknown) => {
         setError(
@@ -141,6 +146,14 @@ function LoadedPlayerProfile({ athleteId }: { athleteId: string }) {
               </h3>
               <CoachNotesList notes={notes ?? []} />
               <AddNoteForm athleteId={athleteId} onAdded={load} />
+            </div>
+
+            <div className="card">
+              <h3>
+                <Icon name="film" />
+                Linked Film
+              </h3>
+              <FilmLinksList links={filmLinks ?? []} />
             </div>
           </>
         ) : null}
@@ -249,6 +262,37 @@ function CoachNotesList({ notes }: { notes: CoachNote[] }) {
           <div className="rv">
             {note.author ? `${note.author} · ` : ""}
             {new Date(note.created_at).toLocaleDateString()}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FilmLinksList({ links }: { links: FilmLink[] }) {
+  if (links.length === 0) {
+    return (
+      <p className="card-note">
+        No film linked yet. Confirm this athlete's track in{" "}
+        <Link to="/film-analysis" style={{ color: "var(--blue-2)" }}>
+          Film Analysis
+        </Link>{" "}
+        to link one.
+      </p>
+    );
+  }
+  return (
+    <div className="row-list">
+      {links.map((link) => (
+        <div className="row-item" key={`${link.video_id}-${link.track_id}`}>
+          <div className="rl">
+            {link.filename}
+            {link.confirmed ? "" : " (proposed, not confirmed)"}
+          </div>
+          <div className="rv">
+            {link.jersey_number ? `#${link.jersey_number}` : "—"}
+            {link.team ? ` · ${link.team}` : ""}
+            {link.position ? ` · ${link.position}` : ""} · {new Date(link.updated_at).toLocaleDateString()}
           </div>
         </div>
       ))}

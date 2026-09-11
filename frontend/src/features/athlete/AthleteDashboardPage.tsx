@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { athletes as athletesApi } from "@/api/coachClient";
+import type { FilmLink } from "@/api/types";
 import { Icon } from "@/components/IconSprite";
 import { ViewHeader } from "@/components/chrome";
 import { SelectAthletePrompt } from "./SelectAthletePrompt";
@@ -32,6 +35,22 @@ export function AthleteDashboardPage() {
 
 function Loaded({ athleteId }: { athleteId: string }) {
   const { athlete, evaluationList, error, loading } = useEvaluations(athleteId, null);
+  const [filmLinks, setFilmLinks] = useState<FilmLink[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    athletesApi
+      .filmLinks(athleteId)
+      .then((links) => {
+        if (!cancelled) setFilmLinks(links);
+      })
+      .catch(() => {
+        if (!cancelled) setFilmLinks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [athleteId]);
 
   if (error) {
     return (
@@ -125,6 +144,35 @@ function Loaded({ athleteId }: { athleteId: string }) {
           </div>
         ) : (
           <p className="card-note">No Truth Reports have been run for this athlete yet.</p>
+        )}
+      </div>
+
+      <div className="card">
+        <h3>
+          <Icon name="film" />
+          Linked Film
+        </h3>
+        {filmLinks === null ? (
+          <p className="card-note">Loading…</p>
+        ) : filmLinks.length > 0 ? (
+          <div className="row-list">
+            {filmLinks.map((link) => (
+              <div className="row-item" key={`${link.video_id}-${link.track_id}`}>
+                <div className="rl">
+                  {link.filename}
+                  {link.confirmed ? "" : " (proposed, not confirmed)"}
+                </div>
+                <div className="rv">
+                  {link.jersey_number ? `#${link.jersey_number}` : "—"} ·{" "}
+                  {new Date(link.updated_at).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="card-note">
+            No film linked yet — a coach links film through the Film Analysis workspace.
+          </p>
         )}
       </div>
     </>

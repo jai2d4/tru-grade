@@ -173,6 +173,7 @@ describe("Player Profile route", () => {
           development: null,
           updated_at: "2026-01-01T00:00:00Z",
         },
+        "/api/v1/athletes/a1/film-links": [],
         "/api/v1/athletes/a1": {
           id: "a1",
           first_name: "Jordan",
@@ -190,6 +191,35 @@ describe("Player Profile route", () => {
     expect(await screen.findByRole("heading", { name: "Jordan Williams" })).toBeInTheDocument();
     expect(await screen.findByText("Great tape.")).toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByText(/not yet rated/i).length).toBeGreaterThan(0));
+  });
+
+  it("shows real linked film from the V2 pipeline, not just Truth Reports", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByPath({
+        "/api/v1/athletes/a1/notes": [],
+        "/api/v1/athletes/a1/fit-scores": {
+          athlete_id: "a1", scheme_fit: null, culture_fit: null, need_match: null, development: null,
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+        "/api/v1/athletes/a1/film-links": [
+          {
+            video_id: "v1", track_id: 1, filename: "scrimmage.mp4", jersey_number: "12",
+            team: "Red", position: "DB", confirmed: true, confidence: 1, source: "manual",
+            updated_at: "2026-02-01T00:00:00Z",
+          },
+        ],
+        "/api/v1/athletes/a1": {
+          id: "a1", first_name: "Jordan", last_name: "Williams", position: "DB",
+          created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+        },
+      }),
+    );
+
+    renderAt("/coach/player-profile?athleteId=a1");
+
+    expect(await screen.findByText("scrimmage.mp4")).toBeInTheDocument();
+    expect(screen.getByText(/#12/)).toBeInTheDocument();
   });
 });
 

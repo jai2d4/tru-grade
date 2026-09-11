@@ -30,6 +30,10 @@ export interface Track {
 export interface TrackAssignment {
   track_id: number;
   player_id?: string | null;
+  /** The real roster link (athletes.id) — set only when a coach confirms
+   * this track against a known prospect. Null for an untracked/opponent
+   * player, which is a legitimate state, not a missing one. */
+  athlete_id?: string | null;
   jersey_number?: string | null;
   team?: string | null;
   position?: string | null;
@@ -105,6 +109,7 @@ export interface IdentifyRequest {
 
 export interface AssignRequest {
   player_id?: string | null;
+  athlete_id?: string | null;
   jersey_number: string;
   team?: string | null;
   position?: string | null;
@@ -373,4 +378,20 @@ export interface CoachDashboard {
   board_counts: Record<string, number>;
   team_needs: TeamNeed[];
   recent_evaluations: Evaluation[];
+}
+
+/** One V2 video where this athlete has a confirmed (or proposed) track
+ * identity — see app/routers/athletes.py's /film-links. No grade — that
+ * persistence is a separate, not-yet-built increment. */
+export interface FilmLink {
+  video_id: string;
+  track_id: number;
+  filename: string;
+  jersey_number?: string | null;
+  team?: string | null;
+  position?: string | null;
+  confirmed: boolean;
+  confidence?: number | null;
+  source?: string | null;
+  updated_at: string;
 }

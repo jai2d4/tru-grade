@@ -50,9 +50,11 @@ export interface IdentityFields {
   position: string;
   playerId: string;
   team: string;
+  /** The real roster link (athletes.id), or "" for none — see AthletePicker. */
+  athleteId: string;
 }
 
-const EMPTY_IDENTITY: IdentityFields = { jersey: "", position: "", playerId: "", team: "" };
+const EMPTY_IDENTITY: IdentityFields = { jersey: "", position: "", playerId: "", team: "", athleteId: "" };
 
 const DEMO_TRAIT_LABELS: Record<DemoTraitName, string> = {
   field_speed: "Field Speed",
@@ -400,6 +402,7 @@ export function useFilmAnalysis(videoRef: RefObject<HTMLVideoElement>) {
         position: a.position ?? "",
         playerId: a.player_id ?? "",
         team: a.team ?? "",
+        athleteId: a.athlete_id ?? "",
       };
       setIdentity(next);
       identityRef.current = next;
@@ -419,6 +422,7 @@ export function useFilmAnalysis(videoRef: RefObject<HTMLVideoElement>) {
     try {
       const result = await videos.assignTrack(id, track, {
         player_id: fields.playerId.trim() || null,
+        athlete_id: fields.athleteId || null,
         jersey_number: fields.jersey.trim(),
         team: fields.team.trim() || null,
         position: normalizePosition(fields.position),

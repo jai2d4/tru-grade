@@ -4,6 +4,7 @@ import { Icon } from "@/components/IconSprite";
 import { ViewHeader } from "@/components/chrome";
 import { confidencePercent, orDash, seconds } from "@/lib/format";
 import { TRUGRADE_POSITIONS } from "@/lib/positions";
+import { AthletePicker } from "./AthletePicker";
 import { drawOverlay } from "./overlay";
 import { useFilmAnalysis } from "./useFilmAnalysis";
 
@@ -266,6 +267,10 @@ export function FilmAnalysisPage() {
                   />
                 </div>
               </div>
+              <AthletePicker
+                athleteId={film.identity.athleteId}
+                onChange={(athleteId) => film.updateIdentity({ athleteId })}
+              />
               <div className="field">
                 <div className="fbody">
                   <label htmlFor="v2Team">Team / uniform</label>

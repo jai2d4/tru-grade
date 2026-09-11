@@ -80,6 +80,7 @@ describe("Athlete Dashboard route", () => {
       "fetch",
       mockFetchByPath({
         "/api/v1/evaluations": [EVALUATION],
+        "/api/v1/athletes/a1/film-links": [],
         "/api/v1/athletes/a1": ATHLETE,
       }),
     );
@@ -89,6 +90,26 @@ describe("Athlete Dashboard route", () => {
     expect(await screen.findByRole("heading", { name: "Jordan Williams" })).toBeInTheDocument();
     const reportsTile = screen.getByRole("heading", { name: /truth reports on file/i }).closest(".card");
     expect(within(reportsTile as HTMLElement).getByText("1")).toBeInTheDocument();
+  });
+
+  it("shows real linked film from the V2 pipeline", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByPath({
+        "/api/v1/evaluations": [EVALUATION],
+        "/api/v1/athletes/a1/film-links": [
+          {
+            video_id: "v1", track_id: 1, filename: "scrimmage.mp4", jersey_number: "12",
+            confirmed: true, updated_at: "2026-02-01T00:00:00Z",
+          },
+        ],
+        "/api/v1/athletes/a1": ATHLETE,
+      }),
+    );
+
+    renderAt("/athlete/dashboard?athleteId=a1");
+
+    expect(await screen.findByText("scrimmage.mp4")).toBeInTheDocument();
   });
 });
 

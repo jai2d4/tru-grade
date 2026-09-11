@@ -14,6 +14,7 @@ import type {
   CoachFitScores,
   CoachNote,
   Evaluation,
+  FilmLink,
   LegacyPosition,
 } from "./types";
 
@@ -44,6 +45,9 @@ export const athletes = {
   },
   create(body: AthleteCreate): Promise<Athlete> {
     return request<Athlete>("/api/v1/athletes", json(body, "POST"));
+  },
+  filmLinks(athleteId: string): Promise<FilmLink[]> {
+    return request<FilmLink[]>(`/api/v1/athletes/${athleteId}/film-links`);
   },
 };
 
