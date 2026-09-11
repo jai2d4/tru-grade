@@ -37,8 +37,11 @@ export class ApiError extends Error {
 /**
  * Mirrors the page's `v2Json` helper: parse JSON, and prefer FastAPI's
  * `detail` string over a bare status code when the request fails.
+ *
+ * Exported so other endpoint groups (api/coachClient.ts) share the same
+ * fetch/error handling instead of re-implementing it.
  */
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiBase() + path, init);
   const data = await response.json().catch(() => ({}) as unknown);
   if (!response.ok) {
@@ -48,9 +51,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-function json(body: unknown): RequestInit {
+export function json(body: unknown, method: "POST" | "PUT" = "POST"): RequestInit {
   return {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   };

@@ -238,3 +238,101 @@ export interface FilmJob {
   error?: string;
   result?: { analysis?: FilmAnalysis };
 }
+
+/* ---------- /api/v1/athletes and Module 7 coach endpoints ----------
+ * These mirror app/models/schemas.py field-for-field, same rule as the rest
+ * of this file: Phase 16 does not change endpoint shapes, and neither does
+ * this addition — it only names and types calls the app didn't make yet.
+ * Note this is the legacy nine-position taxonomy (QB/RB/WR/DB/LB/DE/DL/OL/TE),
+ * a different list from the 13-position TRUGRADE_POSITIONS used by Film
+ * Analysis and Create Profile — do not merge the two.
+ */
+
+export const LEGACY_POSITIONS = ["QB", "RB", "WR", "DB", "LB", "DE", "DL", "OL", "TE"] as const;
+export type LegacyPosition = (typeof LEGACY_POSITIONS)[number];
+
+export interface Athlete {
+  id: string;
+  first_name: string;
+  last_name: string;
+  grad_year?: number | null;
+  school?: string | null;
+  state?: string | null;
+  position: LegacyPosition;
+  height_in?: number | null;
+  weight_lbs?: number | null;
+  forty_s?: number | null;
+  shuttle_s?: number | null;
+  bench_lbs?: number | null;
+  squat_lbs?: number | null;
+  gpa?: number | null;
+  sat?: number | null;
+  act?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const BOARD_STAGES = ["watchlist", "evaluating", "offer_board", "development", "follow_up"] as const;
+export type BoardStage = (typeof BOARD_STAGES)[number];
+
+export const BOARD_STAGE_LABELS: Record<BoardStage, string> = {
+  watchlist: "Watchlist",
+  evaluating: "Evaluating",
+  offer_board: "Offer Board",
+  development: "Development",
+  follow_up: "Follow-Up",
+};
+
+export interface BoardEntry {
+  athlete_id: string;
+  stage: BoardStage;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  position?: string | null;
+}
+
+export interface TeamNeed {
+  position: LegacyPosition;
+  priority: number;
+  updated_at: string;
+}
+
+export interface CoachNote {
+  id: string;
+  athlete_id: string;
+  author?: string | null;
+  note: string;
+  created_at: string;
+}
+
+export interface CoachFitScores {
+  scheme_fit?: number | null;
+  culture_fit?: number | null;
+  need_match?: number | null;
+  development?: number | null;
+  athlete_id: string;
+  updated_at: string;
+}
+
+export interface Evaluation {
+  id: string;
+  athlete_id: string;
+  position_evaluated: LegacyPosition;
+  projected_tier?: string | null;
+  qualifying_tiers: string[];
+  is_game_changer: boolean;
+  game_changer_reason?: string | null;
+  makeup_grade_down?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface CoachDashboard {
+  total_athletes: number;
+  total_evaluations: number;
+  board_counts: Record<string, number>;
+  team_needs: TeamNeed[];
+  recent_evaluations: Evaluation[];
+}

@@ -11,13 +11,10 @@ import {
   RecruitingActivityPage,
   TraitBreakdownPage,
 } from "@/pages/athlete";
-import {
-  Coach360ReportPage,
-  CoachDashboardPage,
-  GenesisSearchPage,
-  PlayerProfilePage,
-  RecruitmentBoardPage,
-} from "@/pages/coach";
+import { Coach360ReportPage, GenesisSearchPage } from "@/pages/coach";
+import { CoachDashboardPage } from "@/features/coach/CoachDashboardPage";
+import { PlayerProfilePage } from "@/features/coach/PlayerProfilePage";
+import { RecruitmentBoardPage } from "@/features/coach/RecruitmentBoardPage";
 import { ProfileProvider } from "@/state/ProfileContext";
 
 /**

@@ -53,9 +53,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Coach",
     items: [
-      { label: "Coach Dashboard", to: "/coach/dashboard", icon: "home", soon: true },
-      { label: "Recruitment Board", to: "/coach/board", icon: "users", soon: true },
-      { label: "Player Profile", to: "/coach/player-profile", icon: "user", soon: true },
+      { label: "Coach Dashboard", to: "/coach/dashboard", icon: "home" },
+      { label: "Recruitment Board", to: "/coach/board", icon: "users" },
+      { label: "Player Profile", to: "/coach/player-profile", icon: "user" },
       { label: "Coach 360 Report", to: "/coach/360-report", icon: "brain", soon: true },
       { label: "Genesis Search", to: "/coach/genesis", icon: "search", soon: true },
     ],
