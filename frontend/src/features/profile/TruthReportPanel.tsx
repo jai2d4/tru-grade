@@ -45,7 +45,7 @@ function PlaceholderBody() {
         </div>
         <img
           className="hero-tg"
-          src="./icon-32.png"
+          src="/icon-32.png"
           alt=""
           style={{
             width: 20,
