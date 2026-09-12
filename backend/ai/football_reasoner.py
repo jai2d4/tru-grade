@@ -13,7 +13,9 @@ SYSTEM_RULE = """You are an observation and football reasoning layer.
 You do not determine the player's official TruGrade score.
 Only identify evidence-supported football traits and outcomes.
 Return unknown when evidence is insufficient. Never guess.
-Every observation must cite a timestamp and explain its evidence."""
+Every non-unknown observation must cite an evidence_timestamp inside one of the
+structured source observation's evidence timestamp ranges and explain its evidence.
+Never invent a timestamp. An unknown observation may use a null evidence_timestamp."""
 
 
 class ReasonedTrait(BaseModel):
@@ -33,6 +35,37 @@ class FootballReasoningResult(BaseModel):
     provider_note: str | None = None
 
 
+class EvidenceIntegrityError(ValueError):
+    """Raised when a scoring claim is not linked to source evidence."""
+
+
+def evidence_for_timestamp(observation: FootballObservation, timestamp: float | None):
+    """Return the source evidence containing ``timestamp``, if one exists."""
+    if timestamp is None:
+        return None
+    return next((record for record in observation.evidence
+                 if record.timestamp_start <= timestamp <= record.timestamp_end), None)
+
+
+def validate_reasoning_evidence(
+    observation: FootballObservation,
+    reasoning: FootballReasoningResult,
+) -> None:
+    """Reject non-unknown claims that cannot point back to the supplied film."""
+    for item in reasoning.observations:
+        if item.value == "unknown":
+            continue
+        if item.evidence_timestamp is None:
+            raise EvidenceIntegrityError(
+                f"Non-unknown trait {item.trait!r} requires an evidence timestamp"
+            )
+        if evidence_for_timestamp(observation, item.evidence_timestamp) is None:
+            raise EvidenceIntegrityError(
+                f"Evidence timestamp {item.evidence_timestamp} for trait {item.trait!r} "
+                "is outside the source observation's evidence ranges"
+            )
+
+
 class FootballReasoner:
     def __init__(self, provider: AIProvider):
         self.provider = provider
@@ -47,4 +80,6 @@ class FootballReasoner:
         prompt = (SYSTEM_RULE + trait_rule + "\nStructured source observation:\n"
                   + json.dumps(observation.model_dump(mode="json")))
         raw = await self.provider.generate_json(prompt, FootballReasoningResult.model_json_schema())
-        return FootballReasoningResult.model_validate(raw)
+        result = FootballReasoningResult.model_validate(raw)
+        validate_reasoning_evidence(observation, result)
+        return result
