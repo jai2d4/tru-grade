@@ -2,9 +2,106 @@
 
 # TRU Scouting Engine
 
+## TruGrade V2 migration status
+
+Phase 1 establishes a safe standalone `frontend/` and stable `backend/`
+entrypoint without changing the current interface or API behavior. The
+existing FastAPI implementation remains under `app/` during the phased
+migration. No Phase 2 grading-engine changes are included yet.
+
+Phase 2 adds the official deterministic film-grading core under
+`backend/grading/`: validated event/evidence models, editable JSON rules for
+all 13 TruGrade positions, unknown-safe aggregation, confidence kept separate
+from grade, and verified-only prospect profile inputs. The current UI and
+production API remain unchanged. The audit found no React `src/lib/engine.ts`
+or fantasy scoring implementation in this repository, so nothing was moved or
+fabricated; a recovery note is retained under `backend/legacy/`.
+
+Phase 3 adds chunked local uploads at `POST /api/videos/upload`, a local video
+catalog at `GET /api/videos`, background extraction jobs at
+`POST /api/analysis/start/{video_id}`, and durable progress polling at
+`GET /api/analysis/status/{job_id}`. OpenCV samples frames at configurable
+`ANALYSIS_FPS` (10 by default) while retaining source frame numbers and exact
+timestamps. Uploaded film remains local and the upload request never waits for
+frame extraction.
+
+Phase 4 adds a lazy, swappable Ultralytics YOLO adapter and a two-stage
+ByteTrack-style tracker. Normal pretrained YOLO recognizes players (`person`)
+and football candidates (`sports ball`); custom football models may additionally
+label officials without changing downstream code. Detection and persistent
+track results are stored as JSON under local storage, with centers, bounding
+boxes, velocity, speed, direction, confidence, and original timestamps.
+
+Phase 5 adds manual field calibration with pixel-to-yard conversion, honest
+zero-confidence fallback when automatic calibration is unavailable, jersey OCR
+candidate contracts, and persistent track-to-player assignment endpoints.
+Human confirmations propagate to the stored game track and retain original
+value, corrected value, time, reason, and `source="human"` audit history.
+
+Phase 6 adds conservative activity-gap play segmentation, track-derived
+movement metrics, strict structured football observations, and evidence links
+to source video/play/frame/track timestamps. Automatic play boundaries remain
+low-confidence until confirmed. Human boundary corrections, play exclusions,
+observation overrides, and scout notes retain their original values and audit
+history.
+
+Phase 7 adds a provider-neutral AI observation layer with OpenAI, Google, and
+Anthropic adapters selected through environment variables. Responses are
+validated against strict Pydantic JSON contracts that forbid extra fields,
+including any AI-authored official score. The reasoner requires evidence,
+confidence, timestamp, and reason, and instructs providers to return `unknown`
+instead of guessing. Demo mode makes no external AI request.
+
+Phase 8 connects validated reasoning to the official position rules through an
+editable provisional event-value file. Unsupported traits/events are rejected;
+`unknown` observations are excluded. Only `TruGradeFilmEngine` computes trait
+and game grades, while confidence remains separate. Player grades and their
+evidence-linked events are stored locally and exposed through
+`GET /api/players/{player_id}/grades`.
+
+Phase 9 adds the visible Film Analysis workspace within the existing TruGrade
+shell and design language. It supports long-film upload, live job progress,
+local video playback, selectable tracking overlays, human jersey/player
+confirmation, play-timeline seeking, official trait/game grades, separate
+confidence, and timestamp-linked evidence. Existing pages and styling remain.
+
+Phase 11 changes film analysis to native frame rate by default, checkpoints
+frame manifests during long extraction, resumes completed extraction and
+vision stages after interruption, and supports explicit CPU/CUDA worker
+selection through `TRUGRADE_DEVICE`. Set `ANALYSIS_FPS` to a number only
+when intentionally generating a lower-cost preview.
+
+Phase 12 adds local multi-frame jersey recognition and team-color matching.
+The requested number is aggregated across every tracked jersey crop. TruGrade
+selects a track automatically only when repeated readings clear both confidence
+and separation thresholds; otherwise the existing human confirmation workflow
+remains mandatory.
+
+Phase 13 adds four-point perspective calibration, automatic visible-field
+boundary estimation, and track measurements in yards, yards per second, and
+miles per hour. Automatic boundary-based values are explicitly labeled
+estimated; verified absolute yardage requires known field points. Weak or
+incomplete geometry returns a manual-calibration requirement instead of
+invented field-speed metrics.
+
+Phase 14 adds a swappable full-frame pose model, dedicated configurable
+football detection with persistent ball tracking, body-orientation evidence,
+and player-to-player contact geometry. Proximity is stored only as a contact
+candidate; it is not mislabeled as a tackle or used as an official grade.
+
+Phase 15 builds evidence-linked play observations for the selected track,
+passes them through the provider-neutral reasoning contract, and then lets only
+the deterministic TruGrade engine calculate the official position grade. The
+demo report groups existing official position traits into Field Speed, Contact,
+Play Recognition, Tackling, and Versatility; missing evidence remains unknown.
+
+On Windows, run `setup_trugrade.bat` once and then `run_trugrade.bat`.
+
 ## Structure
 ```
 tru-scouting-engine/
+├── frontend/                 # current standalone interface and build checks
+├── backend/                  # stable V2 entrypoint and phased modules
 ├── .env.example              # env mapping (copy to .env)
 ├── requirements.txt
 ├── Dockerfile                # container build for deployment (Render/Railway/Fly/anywhere)
