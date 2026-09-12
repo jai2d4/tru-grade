@@ -190,6 +190,37 @@ CREATE INDEX IF NOT EXISTS idx_film_track_athlete ON film_track_assignments (ath
 CREATE INDEX IF NOT EXISTS idx_film_track_video ON film_track_assignments (video_id);
 
 -- ------------------------------------------------------------
+-- Deterministic grading output (backend/grading/service.py's GradeStore)
+-- unified with the same roster. GradeStore's local JSON file remains the
+-- system of record the report-building job reads and writes synchronously
+-- (it's on the critical path of a running Truth Report job); this table is
+-- a best-effort durable mirror written alongside it, keyed the same way
+-- film_track_assignments is — athlete_id is set only when the graded track
+-- already carries a confirmed roster link (looked up from
+-- film_track_assignments by video_id + track_id at save time), never
+-- guessed from player_id. video_id is nullable because GradeStore's lower
+-- level POST /api/players/{player_id}/grades endpoint accepts an arbitrary
+-- caller-supplied game_id that need not be a real upload.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS film_grades (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    video_id        UUID REFERENCES film_uploads(id) ON DELETE CASCADE,
+    athlete_id      UUID REFERENCES athletes(id) ON DELETE SET NULL,
+    player_id       TEXT NOT NULL,           -- GradeStore's key: free text, or an athlete_id string
+    position        VARCHAR(8) NOT NULL,
+    game_grade      DOUBLE PRECISION,        -- PositionGrade.grade: 0-100, null when ungraded
+    confidence      DOUBLE PRECISION,
+    position_grade  JSONB NOT NULL,          -- PositionGrade.model_dump(), full trait detail
+    events          JSONB NOT NULL DEFAULT '[]'::jsonb,
+    demo_traits     JSONB,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_film_grades_athlete ON film_grades (athlete_id);
+CREATE INDEX IF NOT EXISTS idx_film_grades_video ON film_grades (video_id);
+CREATE INDEX IF NOT EXISTS idx_film_grades_player ON film_grades (player_id);
+
+-- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,
 -- best to worst: GAME_CHANGER, ALL_CONF, WIN_PLUS, WIN, WIN_MINUS, NGE.

@@ -185,3 +185,24 @@ class FilmTrackAssignment(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (UniqueConstraint("video_id", "track_id", name="film_track_assignments_video_track_key"),)
+
+
+class FilmGrade(Base):
+    """Best-effort durable mirror of backend/grading/service.py's GradeStore
+    (the local-JSON file stays the system of record on the report-building
+    job's critical path — see the schema comment in db/init_schema.sql).
+    athlete_id is set only from an already-confirmed film_track_assignments
+    row; this table never resolves a roster link by itself."""
+    __tablename__ = "film_grades"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    video_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("film_uploads.id", ondelete="CASCADE"))
+    athlete_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("athletes.id", ondelete="SET NULL"))
+    player_id: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[str] = mapped_column(String(8), nullable=False)
+    game_grade: Mapped[float | None]
+    confidence: Mapped[float | None]
+    position_grade: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    events: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+    demo_traits: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

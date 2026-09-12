@@ -13,7 +13,7 @@ from app.core.auth import require_api_key
 from app.core.db import get_db
 from app.models import orm
 from app.models.schemas import (
-    Athlete, AthleteCreate, CoachFitScoresIn, CoachFitScoresOut, CoachNoteIn, CoachNoteOut, FilmLinkOut,
+    Athlete, AthleteCreate, CoachFitScoresIn, CoachFitScoresOut, CoachNoteIn, CoachNoteOut, FilmGradeOut, FilmLinkOut,
 )
 
 router = APIRouter(
@@ -123,3 +123,21 @@ async def list_film_links(athlete_id: UUID, db: AsyncSession = Depends(get_db)):
         )
         for assignment, video in result.all()
     ]
+
+
+@router.get("/{athlete_id}/grades", response_model=list[FilmGradeOut])
+async def list_film_grades(athlete_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Every deterministic V2 grade run linked to this athlete — a
+    best-effort mirror of backend/grading/service.py's GradeStore, written
+    once a track already confirmed against this athlete gets a Truth
+    Report run. See the film_grades schema comment for what this does and
+    doesn't guarantee."""
+    if await db.get(orm.Athlete, athlete_id) is None:
+        raise HTTPException(status_code=404, detail="Athlete not found.")
+    stmt = (
+        select(orm.FilmGrade)
+        .where(orm.FilmGrade.athlete_id == athlete_id)
+        .order_by(orm.FilmGrade.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()

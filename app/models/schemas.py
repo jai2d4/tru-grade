@@ -234,3 +234,18 @@ class FilmLinkOut(BaseModel):
     confidence: Optional[float] = None
     source: Optional[str] = None
     updated_at: datetime
+
+
+class FilmGradeOut(BaseModel):
+    """One deterministic V2 grade run linked to this athlete — a best-effort
+    mirror of backend/grading/service.py's GradeStore. See the film_grades
+    schema comment for what this does and doesn't guarantee (the local
+    GradeStore file, not this row, is what a running Truth Report job reads
+    and writes directly)."""
+    id: UUID
+    video_id: Optional[UUID] = None
+    position: str
+    game_grade: Optional[float] = None
+    confidence: Optional[float] = None
+    demo_traits: Optional[dict] = None
+    created_at: datetime
