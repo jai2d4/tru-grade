@@ -1,12 +1,25 @@
-"""Phase 3 video upload/list API."""
+"""Phase 3 video upload/list API.
+
+Unified with the athlete roster (see the db/init_schema.sql comment above
+film_track_assignments): every uploaded video gets a real film_uploads row,
+using the same id the local VideoStore already generates, so a video is
+the same row no matter which pipeline created it. Which specific athletes
+appear in it is a backend/api/players.py concern (a video can show more
+than one prospect); this router only establishes that the video itself
+exists in the shared database.
+"""
 from __future__ import annotations
 
 import os
 from pathlib import Path
+from uuid import UUID
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db import get_db
+from app.models import orm
 from backend.video.ingestion import VideoStore
 
 
@@ -16,8 +29,12 @@ video_store = VideoStore(storage_root, int(os.getenv("MAX_UPLOAD_MB", "500")))
 
 
 @router.post("/upload", status_code=201)
-async def upload_video(file: UploadFile = File(...)):
+async def upload_video(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     metadata = await video_store.save(file)
+    db.add(orm.FilmUpload(
+        id=UUID(metadata["video_id"]), filename=metadata["filename"], status=metadata["status"],
+    ))
+    await db.commit()
     return {key: metadata[key] for key in ("video_id", "filename", "status")}
 
 

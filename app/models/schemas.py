@@ -116,6 +116,77 @@ class GradeDown(BaseModel):
     d2_d3_naia_juco: Rank
 
 
+class BoardStage(str, Enum):
+    WATCHLIST = "watchlist"
+    EVALUATING = "evaluating"
+    OFFER_BOARD = "offer_board"
+    DEVELOPMENT = "development"
+    FOLLOW_UP = "follow_up"
+
+
+class BoardEntryIn(BaseModel):
+    stage: BoardStage
+    notes: Optional[str] = None
+
+
+class BoardEntryOut(BaseModel):
+    athlete_id: UUID
+    stage: BoardStage
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    position: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TeamNeedIn(BaseModel):
+    priority: int = Field(..., ge=1, le=5)
+
+
+class TeamNeedOut(BaseModel):
+    position: Position
+    priority: int
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CoachNoteIn(BaseModel):
+    note: str = Field(..., min_length=1)
+    author: Optional[str] = None
+
+
+class CoachNoteOut(BaseModel):
+    id: UUID
+    athlete_id: UUID
+    author: Optional[str] = None
+    note: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CoachFitScoresIn(BaseModel):
+    scheme_fit: Optional[int] = Field(None, ge=1, le=5)
+    culture_fit: Optional[int] = Field(None, ge=1, le=5)
+    need_match: Optional[int] = Field(None, ge=1, le=5)
+    development: Optional[int] = Field(None, ge=1, le=5)
+
+
+class CoachFitScoresOut(CoachFitScoresIn):
+    athlete_id: UUID
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class EvaluationOut(BaseModel):
     id: UUID
     athlete_id: UUID
@@ -139,3 +210,42 @@ class EvaluationOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CoachDashboard(BaseModel):
+    total_athletes: int
+    total_evaluations: int
+    board_counts: dict[str, int]
+    team_needs: list[TeamNeedOut]
+    recent_evaluations: list[EvaluationOut] = []
+
+
+class FilmLinkOut(BaseModel):
+    """One video where this athlete has a confirmed (or proposed) track
+    identity — see backend/api/players.py and the film_track_assignments
+    schema comment for what this does and doesn't cover."""
+    video_id: UUID
+    track_id: int
+    filename: str
+    jersey_number: Optional[str] = None
+    team: Optional[str] = None
+    position: Optional[str] = None
+    confirmed: bool
+    confidence: Optional[float] = None
+    source: Optional[str] = None
+    updated_at: datetime
+
+
+class FilmGradeOut(BaseModel):
+    """One deterministic V2 grade run linked to this athlete — a best-effort
+    mirror of backend/grading/service.py's GradeStore. See the film_grades
+    schema comment for what this does and doesn't guarantee (the local
+    GradeStore file, not this row, is what a running Truth Report job reads
+    and writes directly)."""
+    id: UUID
+    video_id: Optional[UUID] = None
+    position: str
+    game_grade: Optional[float] = None
+    confidence: Optional[float] = None
+    demo_traits: Optional[dict] = None
+    created_at: datetime

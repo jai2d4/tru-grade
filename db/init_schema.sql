@@ -102,6 +102,125 @@ CREATE INDEX IF NOT EXISTS idx_eval_athlete ON evaluations (athlete_id);
 CREATE INDEX IF NOT EXISTS idx_eval_game_changer ON evaluations (is_game_changer) WHERE is_game_changer;
 
 -- ------------------------------------------------------------
+-- Module 7: Coach Recruitment Board
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS board_entries (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    athlete_id      UUID NOT NULL UNIQUE REFERENCES athletes(id) ON DELETE CASCADE,
+    stage           VARCHAR(16) NOT NULL DEFAULT 'watchlist'
+                    CHECK (stage IN ('watchlist','evaluating','offer_board','development','follow_up')),
+    notes           TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_stage ON board_entries (stage);
+
+CREATE TABLE IF NOT EXISTS team_needs (
+    id              SERIAL PRIMARY KEY,
+    position        VARCHAR(4) NOT NULL UNIQUE,
+    priority        SMALLINT NOT NULL DEFAULT 3 CHECK (priority BETWEEN 1 AND 5),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS coach_notes (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    athlete_id      UUID NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+    author          VARCHAR(128),
+    note            TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_coach_notes_athlete ON coach_notes (athlete_id);
+
+CREATE TABLE IF NOT EXISTS coach_fit_scores (
+    athlete_id      UUID PRIMARY KEY REFERENCES athletes(id) ON DELETE CASCADE,
+    scheme_fit      SMALLINT CHECK (scheme_fit IS NULL OR scheme_fit BETWEEN 1 AND 5),
+    culture_fit     SMALLINT CHECK (culture_fit IS NULL OR culture_fit BETWEEN 1 AND 5),
+    need_match      SMALLINT CHECK (need_match IS NULL OR need_match BETWEEN 1 AND 5),
+    development     SMALLINT CHECK (development IS NULL OR development BETWEEN 1 AND 5),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ------------------------------------------------------------
+-- Unifying the V2 film pipeline (backend/api/*) with the athlete roster.
+--
+-- film_uploads already existed (Module 1) but nothing ever wrote to it —
+-- the legacy truth-report flow never set film_id, and the V2 vision
+-- pipeline (backend/video/ingestion.py) kept its own video metadata in a
+-- local JSON file instead. A V2 video's id now *is* a film_uploads.id
+-- (backend/api/videos.py sets it explicitly rather than letting Postgres
+-- generate one), so "which video" and "which athlete" live in the same
+-- table regardless of which pipeline created the row. 'uploaded' is V2's
+-- initial status, absent from the original check because nothing used it.
+--
+-- Only *identity* moves to Postgres here — the frame-by-frame track
+-- geometry (bounding boxes per frame) stays in local files under
+-- backend/storage/. That split matches the roadmap's own "local artifact
+-- adapter for development, durable object storage for production" plan
+-- for heavy media data; a relational table for per-frame pixel
+-- coordinates would be the wrong tool regardless of "one data model."
+-- ------------------------------------------------------------
+ALTER TABLE film_uploads DROP CONSTRAINT IF EXISTS film_uploads_status_check;
+ALTER TABLE film_uploads ADD CONSTRAINT film_uploads_status_check
+    CHECK (status IN ('pending','uploaded','processing','analyzed','failed'));
+
+CREATE TABLE IF NOT EXISTS film_track_assignments (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    video_id        UUID NOT NULL REFERENCES film_uploads(id) ON DELETE CASCADE,
+    track_id        INTEGER NOT NULL,
+    -- The real link this table exists for. Null until a coach confirms a
+    -- track against a roster athlete — automatic identification proposes a
+    -- jersey number and team color match, never a roster link by itself.
+    athlete_id      UUID REFERENCES athletes(id) ON DELETE SET NULL,
+    player_id       TEXT,                    -- free-text identifier when there's no roster match yet
+    jersey_number   VARCHAR(4),
+    team            VARCHAR(128),
+    position        VARCHAR(8),
+    confidence      DOUBLE PRECISION,
+    confirmed       BOOLEAN NOT NULL DEFAULT FALSE,
+    source          VARCHAR(32),             -- 'manual' | 'automatic_multi_frame'
+    candidates      JSONB NOT NULL DEFAULT '[]'::jsonb,
+    history         JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (video_id, track_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_film_track_athlete ON film_track_assignments (athlete_id);
+CREATE INDEX IF NOT EXISTS idx_film_track_video ON film_track_assignments (video_id);
+
+-- ------------------------------------------------------------
+-- Deterministic grading output (backend/grading/service.py's GradeStore)
+-- unified with the same roster. GradeStore's local JSON file remains the
+-- system of record the report-building job reads and writes synchronously
+-- (it's on the critical path of a running Truth Report job); this table is
+-- a best-effort durable mirror written alongside it, keyed the same way
+-- film_track_assignments is — athlete_id is set only when the graded track
+-- already carries a confirmed roster link (looked up from
+-- film_track_assignments by video_id + track_id at save time), never
+-- guessed from player_id. video_id is nullable because GradeStore's lower
+-- level POST /api/players/{player_id}/grades endpoint accepts an arbitrary
+-- caller-supplied game_id that need not be a real upload.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS film_grades (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    video_id        UUID REFERENCES film_uploads(id) ON DELETE CASCADE,
+    athlete_id      UUID REFERENCES athletes(id) ON DELETE SET NULL,
+    player_id       TEXT NOT NULL,           -- GradeStore's key: free text, or an athlete_id string
+    position        VARCHAR(8) NOT NULL,
+    game_grade      DOUBLE PRECISION,        -- PositionGrade.grade: 0-100, null when ungraded
+    confidence      DOUBLE PRECISION,
+    position_grade  JSONB NOT NULL,          -- PositionGrade.model_dump(), full trait detail
+    events          JSONB NOT NULL DEFAULT '[]'::jsonb,
+    demo_traits     JSONB,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_film_grades_athlete ON film_grades (athlete_id);
+CREATE INDEX IF NOT EXISTS idx_film_grades_video ON film_grades (video_id);
+CREATE INDEX IF NOT EXISTS idx_film_grades_player ON film_grades (player_id);
+
+-- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,
 -- best to worst: GAME_CHANGER, ALL_CONF, WIN_PLUS, WIN, WIN_MINUS, NGE.

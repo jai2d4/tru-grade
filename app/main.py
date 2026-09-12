@@ -28,7 +28,7 @@ from app.core.config import get_settings
 from app.core.db import best_effort_session
 from app.models import orm
 from app.models.schemas import AthleteCreate, GradeDown, MakeupGrades, Position, SieveResult
-from app.routers import athletes, evaluations
+from app.routers import athletes, board, coach, evaluations
 from app.services.film_grading import build_scouting_prompt
 from app.services.makeup_grade import average_makeup_grade, grade_down
 from app.services.metric_sieve import run_sieve
@@ -38,6 +38,8 @@ settings = get_settings()
 app = FastAPI(title="TRU_Scouting_Engine_Backend", version="1.0.0")
 app.include_router(athletes.router)
 app.include_router(evaluations.router)
+app.include_router(board.router)
+app.include_router(coach.router)
 
 # Allow the local demo panel (file:// or localhost) to call the API
 app.add_middleware(
