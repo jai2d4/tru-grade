@@ -3,12 +3,13 @@ import { rankLabel } from "@/lib/makeupGrade";
 import { Icon } from "@/components/IconSprite";
 import { ViewHeader } from "@/components/chrome";
 import { SelectAthletePrompt } from "./SelectAthletePrompt";
+import { useEffectiveAthleteId } from "./useEffectiveAthleteId";
 import { useEvaluations } from "./useEvaluations";
 
 /** AI Film Report — the film grades and flags from a real, stored Truth Report. */
 export function AiFilmReportPage() {
   const [searchParams] = useSearchParams();
-  const athleteId = searchParams.get("athleteId");
+  const athleteId = useEffectiveAthleteId();
   const evaluationId = searchParams.get("evaluationId");
 
   return (

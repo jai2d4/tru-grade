@@ -1,6 +1,7 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Icon } from "./IconSprite";
 import { NAV_GROUPS, type NavItem } from "@/navigation";
+import { useAuth } from "@/state/AuthContext";
 
 interface SidebarProps {
   /** Only meaningful below the 860px breakpoint, where the rail is a drawer. */
@@ -47,7 +48,37 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
           ))}
         </div>
       ))}
+
+      <SidebarAccountFooter onNavigate={onNavigate} />
     </nav>
+  );
+}
+
+/** Phase 21 — shows who's signed in (if anyone) with a one-click logout,
+ * so a real session is visible from every screen, not just Account Settings. */
+function SidebarAccountFooter({ onNavigate }: { onNavigate: () => void }) {
+  const { user, loading, logout } = useAuth();
+  const navigate = useNavigate();
+
+  if (loading || !user) return null;
+
+  const doLogout = async () => {
+    await logout();
+    onNavigate();
+    navigate("/login");
+  };
+
+  return (
+    <div className="sidebar-account">
+      <div className="sidebar-account-name">
+        <Icon name="user" />
+        <span>{user.full_name}</span>
+      </div>
+      <button type="button" className="nav-item" onClick={() => void doLogout()}>
+        <Icon name="lock" />
+        Log Out
+      </button>
+    </div>
   );
 }
 

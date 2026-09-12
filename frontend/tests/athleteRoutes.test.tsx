@@ -65,14 +65,17 @@ const EVALUATION = {
 };
 
 describe("Athlete Dashboard route", () => {
-  it("shows the honest empty state and touches no network with no athlete selected", () => {
+  it("shows the honest empty state and touches no network with no athlete selected", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
     renderAt("/athlete/dashboard");
 
-    expect(screen.getByRole("note")).toHaveTextContent(/no athlete selected/i);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // AuthProvider's own /api/v1/auth/me check (Phase 21) settles async —
+    // wait for it so the assertion below isn't racing a pending state update.
+    expect(await screen.findByRole("note")).toHaveTextContent(/no athlete selected/i);
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => url.endsWith("/api/v1/auth/me"))).toBe(true);
   });
 
   it("renders real Truth Report counts for the selected athlete", async () => {

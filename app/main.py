@@ -29,7 +29,7 @@ from app.core.cors import resolve_cors_allow_origins
 from app.core.db import best_effort_session
 from app.models import orm
 from app.models.schemas import AthleteCreate, GradeDown, MakeupGrades, Position, SieveResult
-from app.routers import athletes, board, coach, evaluations, public
+from app.routers import athletes, auth, board, coach, evaluations, public
 from app.services.film_grading import build_scouting_prompt
 from app.services.makeup_grade import average_makeup_grade, grade_down
 from app.services.metric_sieve import run_sieve
@@ -41,18 +41,25 @@ app.include_router(athletes.router)
 app.include_router(evaluations.router)
 app.include_router(board.router)
 app.include_router(coach.router)
+app.include_router(auth.router)
 # No require_api_key here — this is the anonymous public share-link surface;
 # see app/routers/public.py for exactly what it does and doesn't expose.
 app.include_router(public.router)
 
 # The deployed panel is same-origin. Cross-origin access is explicit in
 # production and remains open only in the named local/demo environments.
+# allow_credentials is required for the Phase 21 session cookie to travel on
+# a cross-origin request (e.g. the Vite dev server on :5173 calling :8000);
+# Starlette automatically reflects the specific request Origin instead of a
+# literal "*" whenever allow_credentials is set, so this stays compatible
+# with the wildcard local-dev default from resolve_cors_allow_origins.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=resolve_cors_allow_origins(
         settings.APP_ENV,
         settings.CORS_ALLOW_ORIGINS,
     ),
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

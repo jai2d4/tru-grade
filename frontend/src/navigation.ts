@@ -34,9 +34,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Account",
     items: [
-      { label: "Login", to: "/login", icon: "lock", soon: true },
-      { label: "Create Account", to: "/create-account", icon: "user", soon: true },
-      { label: "Account Settings", to: "/account", icon: "gear", soon: true },
+      { label: "Login", to: "/login", icon: "lock" },
+      { label: "Create Account", to: "/create-account", icon: "user" },
+      { label: "Account Settings", to: "/account", icon: "gear" },
     ],
   },
   {

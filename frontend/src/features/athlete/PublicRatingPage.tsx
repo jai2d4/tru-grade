@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { ApiError } from "@/api/client";
 import { shareLinks as shareLinksApi } from "@/api/coachClient";
 import type { ShareLink } from "@/api/types";
@@ -7,6 +6,7 @@ import { Icon } from "@/components/IconSprite";
 import { Stars, ViewHeader } from "@/components/chrome";
 import { tierStars } from "@/lib/metricSieve";
 import { SelectAthletePrompt } from "./SelectAthletePrompt";
+import { useEffectiveAthleteId } from "./useEffectiveAthleteId";
 import { useEvaluations } from "./useEvaluations";
 
 /**
@@ -17,8 +17,7 @@ import { useEvaluations } from "./useEvaluations";
  * other screen reads — no separate "public" number is computed.
  */
 export function PublicRatingPage() {
-  const [searchParams] = useSearchParams();
-  const athleteId = searchParams.get("athleteId");
+  const athleteId = useEffectiveAthleteId();
 
   return (
     <div className="view">

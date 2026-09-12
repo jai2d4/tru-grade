@@ -152,10 +152,13 @@ describe("Player Profile route", () => {
 
     renderAt("/coach/player-profile");
 
-    const note = screen.getByRole("note");
+    const note = await screen.findByRole("note");
     expect(within(note).getByText(/no athlete selected/i)).toBeInTheDocument();
     expect(within(note).getByRole("link", { name: /recruitment board/i })).toHaveAttribute("href", "/coach/board");
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // AuthProvider checks /api/v1/auth/me on every page load (Phase 21) —
+    // that's expected; no athlete-specific data should be fetched.
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => url.endsWith("/api/v1/auth/me"))).toBe(true);
   });
 
   it("loads the selected athlete's real name, notes, and fit scores", async () => {
@@ -259,10 +262,13 @@ describe("Coach 360 Report route", () => {
 
     renderAt("/coach/360-report");
 
-    const note = screen.getByRole("note");
+    const note = await screen.findByRole("note");
     expect(within(note).getByText(/no athlete selected/i)).toBeInTheDocument();
     expect(within(note).getByRole("link", { name: /recruitment board/i })).toHaveAttribute("href", "/coach/board");
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // AuthProvider checks /api/v1/auth/me on every page load (Phase 21) —
+    // that's expected; no athlete-specific data should be fetched.
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => url.endsWith("/api/v1/auth/me"))).toBe(true);
   });
 
   it("combines the athlete's real Truth Report, fit scores, notes, film, and grades into one report", async () => {
@@ -335,14 +341,17 @@ describe("Coach 360 Report route", () => {
 });
 
 describe("Genesis Search route", () => {
-  it("says up front it is structured filtering, not natural language, before any search", () => {
+  it("says up front it is structured filtering, not natural language, before any search", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
     renderAt("/coach/genesis");
 
-    expect(screen.getByText(/not natural language yet/i)).toBeInTheDocument();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(await screen.findByText(/not natural language yet/i)).toBeInTheDocument();
+    // AuthProvider checks /api/v1/auth/me on every page load (Phase 21) —
+    // that's expected; no athlete-specific data should be fetched.
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => url.endsWith("/api/v1/auth/me"))).toBe(true);
   });
 
   it("filters the real roster by name on search", async () => {

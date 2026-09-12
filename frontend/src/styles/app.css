@@ -243,6 +243,12 @@ td.val.laser{color:var(--laser)}
 .nav-item.active .ic{color:var(--blue-2)}
 .nav-badge{margin-left:auto;font-family:'IBM Plex Mono';font-size:9px;color:var(--dim);
   border:1px solid var(--line);border-radius:100px;padding:1px 6px;letter-spacing:.04em}
+
+/* Phase 21 — who's signed in, visible from every screen via the sidebar. */
+.sidebar-account{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.sidebar-account-name{display:flex;align-items:center;gap:8px;padding:0 10px 8px;
+  font-size:12px;color:var(--dim)}
+.sidebar-account-name .ic{color:var(--dim)}
 .main{flex:1;min-width:0}
 .view{display:block}
 .view[hidden]{display:none}

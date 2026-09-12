@@ -271,3 +271,40 @@ class PublicAthleteOut(BaseModel):
     grad_year: Optional[int] = None
     projected_tier: Optional[str] = None
     is_game_changer: bool = False
+
+
+class UserRole(str, Enum):
+    COACH = "coach"
+    ATHLETE = "athlete"
+
+
+class SignupRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+    password: str = Field(..., min_length=8, max_length=128)
+    full_name: str = Field(..., min_length=1, max_length=128)
+    role: UserRole
+    # Required only when role == ATHLETE — see app/routers/auth.py, which
+    # resolves it to an existing or new athletes row. A Pydantic-level
+    # required-if-role check would reject the field entirely for coaches, so
+    # the actual requirement is enforced in the route instead.
+    position: Optional[Position] = None
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=1, max_length=254)
+    password: str = Field(..., min_length=1, max_length=128)
+
+
+class CurrentUser(BaseModel):
+    """The authenticated caller — never includes the password hash or the
+    raw session token, only what the frontend needs to know who's signed
+    in and route them to the right screens."""
+    id: UUID
+    email: str
+    full_name: str
+    role: UserRole
+    athlete_id: Optional[UUID] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

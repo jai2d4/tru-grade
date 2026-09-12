@@ -435,3 +435,36 @@ export interface PublicAthlete {
   projected_tier?: string | null;
   is_game_changer: boolean;
 }
+
+/* ---------- Real accounts (Phase 21) ----------
+ * app/models/schemas.py SignupRequest / LoginRequest / CurrentUser, see
+ * app/routers/auth.py. Session identity is a cookie, never carried here.
+ */
+
+export type UserRole = "coach" | "athlete";
+
+export interface SignupRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  role: UserRole;
+  /** Required (and only meaningful) when role is "athlete" — resolves to an
+   * existing or brand-new athletes row server-side. */
+  position?: LegacyPosition;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+/** The signed-in caller. Never carries a password hash or the raw session
+ * token — that lives only in the httpOnly cookie. */
+export interface CurrentUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  athlete_id?: string | null;
+  created_at: string;
+}

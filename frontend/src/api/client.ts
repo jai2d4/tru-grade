@@ -52,7 +52,10 @@ const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (API_KEY) headers.set("X-API-Key", API_KEY);
-  const response = await fetch(apiBase() + path, { ...init, headers });
+  // Phase 21's session cookie needs this on every call — harmless for calls
+  // that don't touch it, and same-origin (the deployed app) sends cookies by
+  // default anyway; this matters for the cross-origin Vite dev server case.
+  const response = await fetch(apiBase() + path, { ...init, headers, credentials: "include" });
   const data = await response.json().catch(() => ({}) as unknown);
   if (!response.ok) {
     const detail = (data as { detail?: string }).detail;

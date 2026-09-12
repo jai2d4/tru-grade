@@ -39,8 +39,11 @@ describe("Public Rating route", () => {
 
     renderAt("/athlete/public-rating");
 
-    expect(screen.getByRole("note")).toHaveTextContent(/no athlete selected/i);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(await screen.findByRole("note")).toHaveTextContent(/no athlete selected/i);
+    // AuthProvider checks /api/v1/auth/me on every page load (Phase 21) —
+    // that's expected; no athlete-specific data should be fetched.
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => url.endsWith("/api/v1/auth/me"))).toBe(true);
     expect(screen.queryByText("COMING SOON")).not.toBeInTheDocument();
   });
 

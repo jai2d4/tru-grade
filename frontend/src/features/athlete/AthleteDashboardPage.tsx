@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { athletes as athletesApi } from "@/api/coachClient";
 import type { FilmGrade, FilmLink } from "@/api/types";
 import { Icon } from "@/components/IconSprite";
 import { ViewHeader } from "@/components/chrome";
 import { confidencePercent, orDash } from "@/lib/format";
 import { SelectAthletePrompt } from "./SelectAthletePrompt";
+import { useEffectiveAthleteId } from "./useEffectiveAthleteId";
 import { useEvaluations } from "./useEvaluations";
 
 /** Athlete Dashboard — real Truth Report history for a chosen athlete. */
 export function AthleteDashboardPage() {
-  const [searchParams] = useSearchParams();
-  const athleteId = searchParams.get("athleteId");
+  const athleteId = useEffectiveAthleteId();
 
   return (
     <div className="view">
