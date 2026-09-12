@@ -21,7 +21,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
     <nav className="sidebar" id="trugrade-sidebar" aria-label="Sections">
       <div className="sidebar-brand">
         <img
-          src="./trugrade-mark.jpg"
+          src="/trugrade-mark.jpg"
           alt=""
           width={24}
           height={24}
