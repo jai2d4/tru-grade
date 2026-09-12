@@ -136,15 +136,30 @@ async def phase_one_health():
     return await health()
 
 
-_FRONTEND_PATH = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
+_FRONTEND_ROOT = Path(__file__).resolve().parent.parent / "frontend"
+_FRONTEND_DIST_INDEX = _FRONTEND_ROOT / "dist" / "index.html"
+_FRONTEND_SRC_INDEX = _FRONTEND_ROOT / "index.html"
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def truth_report_panel():
-    """Serves the Truth Report demo panel from the app's own origin, so its
-    fetch() calls resolve as same-origin — works identically on localhost
-    and on the deployed URL, no separate static host needed."""
-    return _FRONTEND_PATH.read_text(encoding="utf-8")
+    """Serves the built React app from the app's own origin, so its fetch()
+    calls resolve as same-origin — works identically on localhost and on the
+    deployed URL, no separate static host needed.
+
+    `frontend/index.html` (the Vite entry point) only works through Vite
+    itself — a browser can't resolve its `<script src="/src/main.tsx">`
+    directly. `frontend/dist/` is what `npm run build` produces, and what
+    backend.main mounts in full (assets + client-side routing) once every
+    router is registered; this bare route exists so app.main stays a working
+    app on its own — tests/conftest.py wraps it directly, without
+    backend.main's SPA mount. If dist/ hasn't been built yet (a fresh
+    checkout, before `npm run build`), fall back to the raw entry file so
+    this route still returns something rather than a stack trace.
+    """
+    if _FRONTEND_DIST_INDEX.is_file():
+        return _FRONTEND_DIST_INDEX.read_text(encoding="utf-8")
+    return _FRONTEND_SRC_INDEX.read_text(encoding="utf-8")
 
 
 @app.post("/api/v1/scout/metric-sieve", response_model=SieveResult, dependencies=[Depends(require_api_key)])
