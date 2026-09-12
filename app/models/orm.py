@@ -84,3 +84,74 @@ class Evaluation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     athlete: Mapped["Athlete"] = relationship(back_populates="evaluations")
+
+
+class BoardEntry(Base):
+    """Module 7 — Coach Recruitment Board. One row per athlete a coach has
+    added to their board; UNIQUE(athlete_id) makes moving between stages an
+    upsert rather than creating duplicate cards."""
+    __tablename__ = "board_entries"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    athlete_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("athletes.id", ondelete="CASCADE"), nullable=False, unique=True,
+    )
+    stage: Mapped[str] = mapped_column(String(16), nullable=False, default="watchlist", server_default="watchlist")
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "stage IN ('watchlist','evaluating','offer_board','development','follow_up')",
+            name="board_entries_stage_check",
+        ),
+    )
+
+
+class TeamNeed(Base):
+    """Module 7 — coach-editable priority (1-5 stars) per position."""
+    __tablename__ = "team_needs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    position: Mapped[str] = mapped_column(String(4), nullable=False, unique=True)
+    priority: Mapped[int] = mapped_column(nullable=False, default=3, server_default="3")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("priority BETWEEN 1 AND 5", name="team_needs_priority_check"),
+    )
+
+
+class CoachNote(Base):
+    """Module 7 — free-text coach notes on an athlete, newest first."""
+    __tablename__ = "coach_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    athlete_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("athletes.id", ondelete="CASCADE"), nullable=False)
+    author: Mapped[str | None] = mapped_column(String(128))
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CoachFitScore(Base):
+    """Module 7 — coach-set 1-5 fit ratings for an athlete. One row per
+    athlete (athlete_id is the primary key), upserted from the Player
+    Profile view."""
+    __tablename__ = "coach_fit_scores"
+
+    athlete_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("athletes.id", ondelete="CASCADE"), primary_key=True,
+    )
+    scheme_fit: Mapped[int | None]
+    culture_fit: Mapped[int | None]
+    need_match: Mapped[int | None]
+    development: Mapped[int | None]
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("scheme_fit IS NULL OR scheme_fit BETWEEN 1 AND 5", name="fit_scheme_check"),
+        CheckConstraint("culture_fit IS NULL OR culture_fit BETWEEN 1 AND 5", name="fit_culture_check"),
+        CheckConstraint("need_match IS NULL OR need_match BETWEEN 1 AND 5", name="fit_need_check"),
+        CheckConstraint("development IS NULL OR development BETWEEN 1 AND 5", name="fit_development_check"),
+    )
