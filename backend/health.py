@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, ConfigDict
@@ -17,6 +20,8 @@ from backend.contracts import CONTRACT_VERSION
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 Probe = Callable[[], Awaitable[None]]
+
+_PROCESS_STARTED_AT = time.monotonic()
 
 
 class DependencyCheck(BaseModel):
@@ -83,3 +88,49 @@ async def readiness(
     if result.status != "ready":
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return result
+
+
+class StatusResult(BaseModel):
+    """A richer, single-call diagnostic report — meant for an external
+    monitor (a status dashboard, an on-call bot, a control center like a
+    self-hosted ops tool) that wants more than a bare up/down. Never
+    includes a secret value — only whether one is configured."""
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    contract_version: str = CONTRACT_VERSION
+    environment: str
+    uptime_seconds: float
+    git_commit: Optional[str] = None
+    git_branch: Optional[str] = None
+    checks: dict[str, DependencyCheck]
+    gemini_configured: bool
+    api_key_configured: bool
+
+
+@router.get("/status", response_model=StatusResult)
+async def detailed_status(
+    response: Response,
+    probes: dict[str, Probe] = Depends(get_readiness_probes),
+) -> StatusResult:
+    """Public, unauthenticated, read-only — same trust level as /live and
+    /ready (an external monitor needs this to work without a credential),
+    and just as careful never to leak anything secret through it."""
+    settings = get_settings()
+    readiness_result = await check_readiness(probes)
+    if readiness_result.status != "ready":
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return StatusResult(
+        status=readiness_result.status,
+        environment=settings.APP_ENV,
+        uptime_seconds=round(time.monotonic() - _PROCESS_STARTED_AT, 1),
+        # RENDER_GIT_COMMIT / RENDER_GIT_BRANCH are set automatically by
+        # Render on every deploy; both are None when running elsewhere
+        # (local dev, another host) rather than a confusing empty string.
+        git_commit=os.environ.get("RENDER_GIT_COMMIT"),
+        git_branch=os.environ.get("RENDER_GIT_BRANCH"),
+        checks=readiness_result.checks or {},
+        gemini_configured=bool(settings.GEMINI_API_KEY),
+        api_key_configured=bool(settings.API_KEY),
+    )
