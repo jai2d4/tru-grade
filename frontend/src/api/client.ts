@@ -35,6 +35,14 @@ export class ApiError extends Error {
 }
 
 /**
+ * Baked into the bundle at build time (see Dockerfile) from the same secret
+ * the backend checks as API_KEY — see backend/security/identity.py and
+ * app/core/auth.py. Undefined in local dev (both sides leave auth off), so
+ * this stays a no-op until a real value is built in.
+ */
+const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
+
+/**
  * Mirrors the page's `v2Json` helper: parse JSON, and prefer FastAPI's
  * `detail` string over a bare status code when the request fails.
  *
@@ -42,7 +50,9 @@ export class ApiError extends Error {
  * fetch/error handling instead of re-implementing it.
  */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(apiBase() + path, init);
+  const headers = new Headers(init?.headers);
+  if (API_KEY) headers.set("X-API-Key", API_KEY);
+  const response = await fetch(apiBase() + path, { ...init, headers });
   const data = await response.json().catch(() => ({}) as unknown);
   if (!response.ok) {
     const detail = (data as { detail?: string }).detail;

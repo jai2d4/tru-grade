@@ -14,12 +14,16 @@ services:
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /api/health/ready
     envVars:
       - key: GEMINI_API_KEY
         sync: false           # paste your key in the Render dashboard after deploy
       - key: API_KEY
-        sync: false           # optional shared secret — set it to lock the app down; leave blank for open access
+        sync: false           # required in production — the app refuses to start without it (see backend/security/identity.py); set to any strong random secret
+      - key: VITE_API_KEY
+        sync: false           # set to the SAME value as API_KEY above — baked into the frontend bundle at build time so the deployed site can call its own API. Requires a manual re-deploy after setting (build-time only, not picked up by a running instance)
+      - key: CORS_ALLOW_ORIGINS
+        value: ""              # same-origin only; set an explicit comma-separated allowlist if a separate frontend origin ever calls this API directly
       - key: POSTGRES_HOST
         fromDatabase:
           name: tru-scouting-db
