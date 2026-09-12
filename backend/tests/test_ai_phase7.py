@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from backend.ai.football_reasoner import FootballReasoner, FootballReasoningResult, SYSTEM_RULE
 from backend.ai.provider import AIProvider, DemoProvider, create_provider
 from backend.football.observations import FootballObservation
+from backend.grading.models import Evidence
 
 
 class FakeProvider(AIProvider):
@@ -21,7 +22,11 @@ class FakeProvider(AIProvider):
 
 
 def source_observation():
-    return FootballObservation(observation_id="O1", play_id="P1", player_id="19", position="LB")
+    return FootballObservation(
+        observation_id="O1", play_id="P1", player_id="19", position="LB",
+        evidence=[Evidence(video_id="V1", play_id="P1", timestamp_start=12,
+                           timestamp_end=13, description="Verified film range")],
+    )
 
 
 def test_reasoner_validates_strict_structured_json():
