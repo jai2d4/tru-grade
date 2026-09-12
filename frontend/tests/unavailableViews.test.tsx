@@ -20,7 +20,7 @@ const SOON_ROUTES = NAV_GROUPS.flatMap((group) => group.items)
 const NUMERIC_CLAIM = /\b\d+(\.\d+)?%?\b/;
 
 /** Placeholders that are honestly empty rather than fabricated. */
-const ALLOWED_LITERALS = ["0 athletes", "Power 4", "Group of 5", "Coach 360", "360"];
+const ALLOWED_LITERALS = ["0 athletes", "Power 4", "Group of 5"];
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network disabled in tests"))));
@@ -36,7 +36,7 @@ function renderAt(path: string) {
 
 describe("unavailable views", () => {
   it("covers every soon-badged sidebar entry", () => {
-    expect(SOON_ROUTES).toHaveLength(7);
+    expect(SOON_ROUTES).toHaveLength(6);
   });
 
   it.each(SOON_ROUTES)("%s says it is not available", (route) => {

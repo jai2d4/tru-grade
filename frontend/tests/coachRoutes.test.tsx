@@ -252,6 +252,88 @@ describe("Player Profile route", () => {
   });
 });
 
+describe("Coach 360 Report route", () => {
+  it("prompts to pick an athlete from the board when none is selected, and touches no network", async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    renderAt("/coach/360-report");
+
+    const note = screen.getByRole("note");
+    expect(within(note).getByText(/no athlete selected/i)).toBeInTheDocument();
+    expect(within(note).getByRole("link", { name: /recruitment board/i })).toHaveAttribute("href", "/coach/board");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("combines the athlete's real Truth Report, fit scores, notes, film, and grades into one report", async () => {
+    const evaluation = {
+      id: "e1",
+      athlete_id: "a1",
+      position_evaluated: "DB",
+      projected_tier: "D1_FCS",
+      qualifying_tiers: ["D1_FCS"],
+      metric_sieve_results: {
+        position: "DB",
+        tier: "D1_FCS",
+        checks: [
+          { metric: "forty_yard_dash", athlete_value: 4.5, threshold: "<= 4.6", passed: true },
+          { metric: "vertical_jump", athlete_value: 28, threshold: ">= 33", passed: false },
+        ],
+        hard_metrics_passed: true,
+        is_game_changer: false,
+      },
+      is_game_changer: false,
+      makeup_grade_down: { overall: "WIN", p4: "WIN_MINUS", group_of_5: "WIN", fcs: "WIN_PLUS", d2_d3_naia_juco: "ALL_CONF" },
+      player_identified: true,
+      film_grades: {},
+      film_flags: [],
+      created_at: "2026-02-01T00:00:00Z",
+    };
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByPath({
+        "/api/v1/evaluations": [evaluation],
+        "/api/v1/athletes/a1/notes": [
+          { id: "n1", athlete_id: "a1", author: "Coach T", note: "Great tape.", created_at: "2026-01-01T00:00:00Z" },
+        ],
+        "/api/v1/athletes/a1/fit-scores": {
+          athlete_id: "a1", scheme_fit: 4, culture_fit: null, need_match: null, development: null,
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+        "/api/v1/athletes/a1/film-links": [
+          { video_id: "v1", track_id: 1, filename: "scrimmage.mp4", jersey_number: "12",
+            confirmed: true, updated_at: "2026-02-01T00:00:00Z" },
+        ],
+        "/api/v1/athletes/a1/grades": [
+          { id: "g1", video_id: "v1", position: "DB", game_grade: 71, confidence: 0.65,
+            created_at: "2026-02-01T00:00:00Z" },
+        ],
+        "/api/v1/athletes/a1": {
+          id: "a1", first_name: "Jordan", last_name: "Williams", position: "DB",
+          created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+        },
+      }),
+    );
+
+    renderAt("/coach/360-report?athleteId=a1");
+
+    expect(await screen.findByRole("heading", { name: "Jordan Williams" })).toBeInTheDocument();
+    // Strengths / weaknesses split from the real hard-metric checks.
+    expect(screen.getByText("forty yard dash")).toBeInTheDocument();
+    expect(screen.getByText("vertical jump")).toBeInTheDocument();
+    // Profile & Makeup grade-down.
+    const p4Row = screen.getByText("Power 4").closest(".row-item");
+    expect(within(p4Row as HTMLElement).getByText("Win-")).toBeInTheDocument();
+    // Coach fit, notes, linked film, and V2 grades.
+    expect(screen.getByText("4 / 5")).toBeInTheDocument();
+    expect(screen.getByText("Great tape.")).toBeInTheDocument();
+    expect(screen.getByText("scrimmage.mp4")).toBeInTheDocument();
+    expect(screen.getByText(/71/)).toBeInTheDocument();
+    // The honestly-unavailable decision recorder stays disabled.
+    expect(screen.getByRole("button", { name: /offer — full scholarship/i })).toBeDisabled();
+  });
+});
+
 describe("Genesis Search route", () => {
   it("says up front it is structured filtering, not natural language, before any search", () => {
     const fetchSpy = vi.fn();
