@@ -206,3 +206,16 @@ class FilmGrade(Base):
     events: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     demo_traits: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AthleteShareLink(Base):
+    """An unauthenticated, read-only share link for one athlete — see the
+    schema comment in db/init_schema.sql for exactly what the public
+    endpoint (app/routers/public.py) does and doesn't expose."""
+    __tablename__ = "athlete_share_links"
+
+    athlete_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("athletes.id", ondelete="CASCADE"), primary_key=True,
+    )
+    token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -249,3 +249,25 @@ class FilmGradeOut(BaseModel):
     confidence: Optional[float] = None
     demo_traits: Optional[dict] = None
     created_at: datetime
+
+
+class ShareLinkOut(BaseModel):
+    """The coach/athlete-facing view of a share link — the token itself,
+    for building the public URL client-side, plus when it was (re)issued.
+    Never includes anything about the athlete; see PublicAthleteOut for
+    what the link's own holder sees."""
+    token: str
+    created_at: datetime
+
+
+class PublicAthleteOut(BaseModel):
+    """Everything (and only what) an unauthenticated visitor with a valid
+    share-link token gets to see. Deliberately narrow — see the
+    athlete_share_links schema comment for what's excluded and why."""
+    first_name: str
+    last_name: str
+    position: str
+    school: Optional[str] = None
+    grad_year: Optional[int] = None
+    projected_tier: Optional[str] = None
+    is_game_changer: bool = False

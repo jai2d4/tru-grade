@@ -221,6 +221,25 @@ CREATE INDEX IF NOT EXISTS idx_film_grades_video ON film_grades (video_id);
 CREATE INDEX IF NOT EXISTS idx_film_grades_player ON film_grades (player_id);
 
 -- ------------------------------------------------------------
+-- Public Rating: an unauthenticated, read-only share link for one athlete.
+-- One row per athlete — generating a new link overwrites the token, which
+-- invalidates the old one outright (no separate revoke state needed for
+-- "I want a fresh link"; DELETE the row for "I want no link at all").
+-- What the public endpoint (app/routers/public.py) hands back is
+-- deliberately narrow: name, position, school, grad year, and the real
+-- projected tier — no hard metrics, no coach notes, no fit scores, no
+-- film. The token itself is the only credential; treat it like any other
+-- unguessable share-link (a Docs or Dropbox link), not a password.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS athlete_share_links (
+    athlete_id      UUID PRIMARY KEY REFERENCES athletes(id) ON DELETE CASCADE,
+    token           TEXT NOT NULL UNIQUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_athlete_share_links_token ON athlete_share_links (token);
+
+-- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,
 -- best to worst: GAME_CHANGER, ALL_CONF, WIN_PLUS, WIN, WIN_MINUS, NGE.

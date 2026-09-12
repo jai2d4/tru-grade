@@ -47,7 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Trait Breakdown", to: "/athlete/traits", icon: "star" },
       { label: "Recruiting Activity", to: "/athlete/recruiting", icon: "bell", soon: true },
       { label: "Offer Probability", to: "/athlete/offers", icon: "target", soon: true },
-      { label: "Public Rating", to: "/athlete/public-rating", icon: "link", soon: true },
+      { label: "Public Rating", to: "/athlete/public-rating", icon: "link" },
     ],
   },
   {

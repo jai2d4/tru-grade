@@ -410,3 +410,28 @@ export interface FilmGrade {
   demo_traits?: Partial<Record<DemoTraitName, DemoTrait>> | null;
   created_at: string;
 }
+
+/* ---------- Public Rating (share links) ----------
+ * app/models/schemas.py ShareLinkOut / PublicAthleteOut, see
+ * app/routers/athletes.py's /share-link and app/routers/public.py.
+ */
+
+/** The coach-facing view of a share link — just enough to build the public
+ * URL client-side. Never carries anything about the athlete itself. */
+export interface ShareLink {
+  token: string;
+  created_at: string;
+}
+
+/** Everything (and only what) an unauthenticated visitor with a valid
+ * share-link token gets to see — deliberately narrow, no hard metrics,
+ * notes, fit scores, or film. */
+export interface PublicAthlete {
+  first_name: string;
+  last_name: string;
+  position: string;
+  school?: string | null;
+  grad_year?: number | null;
+  projected_tier?: string | null;
+  is_game_changer: boolean;
+}

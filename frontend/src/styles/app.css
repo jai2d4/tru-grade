@@ -383,3 +383,10 @@ td.val.laser{color:var(--laser)}
    the panel colours, so set them explicitly for the dark shell. */
 .field select{appearance:none;cursor:pointer;padding-right:14px}
 .field select option{background:var(--panel2);color:var(--chalk)}
+
+/* Public Rating — the anonymous share-link landing page, rendered outside
+   AppShell (no sidebar, no coach nav) since its viewer has no account. */
+.public-rating-page{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  padding:32px 16px}
+.public-rating-card{width:100%;max-width:480px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:28px}

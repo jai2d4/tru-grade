@@ -3,15 +3,17 @@ import { AppShell } from "@/components/AppShell";
 import { CreateProfilePage } from "@/features/profile/CreateProfilePage";
 import { FilmAnalysisPage } from "@/features/film/FilmAnalysisPage";
 import { AccountSettingsPage, CreateAccountPage, LoginPage } from "@/pages/account";
-import { OfferProbabilityPage, PublicRatingPage, RecruitingActivityPage } from "@/pages/athlete";
+import { OfferProbabilityPage, RecruitingActivityPage } from "@/pages/athlete";
 import { AiFilmReportPage } from "@/features/athlete/AiFilmReportPage";
 import { AthleteDashboardPage } from "@/features/athlete/AthleteDashboardPage";
+import { PublicRatingPage } from "@/features/athlete/PublicRatingPage";
 import { TraitBreakdownPage } from "@/features/athlete/TraitBreakdownPage";
 import { Coach360ReportPage } from "@/features/coach/Coach360ReportPage";
 import { CoachDashboardPage } from "@/features/coach/CoachDashboardPage";
 import { GenesisSearchPage } from "@/features/coach/GenesisSearchPage";
 import { PlayerProfilePage } from "@/features/coach/PlayerProfilePage";
 import { RecruitmentBoardPage } from "@/features/coach/RecruitmentBoardPage";
+import { PublicAthletePage } from "@/features/public/PublicAthletePage";
 import { ProfileProvider } from "@/state/ProfileContext";
 
 /**
@@ -26,6 +28,11 @@ export function App() {
   return (
     <ProfileProvider>
       <Routes>
+        {/* Anonymous share-link landing page — no account, no sidebar, so it
+            sits outside AppShell entirely rather than under any coach/athlete
+            path. See app/routers/public.py for what it can and can't show. */}
+        <Route path="public/:token" element={<PublicAthletePage />} />
+
         <Route element={<AppShell />}>
           <Route index element={<CreateProfilePage />} />
           <Route path="film-analysis" element={<FilmAnalysisPage />} />

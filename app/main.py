@@ -29,7 +29,7 @@ from app.core.cors import resolve_cors_allow_origins
 from app.core.db import best_effort_session
 from app.models import orm
 from app.models.schemas import AthleteCreate, GradeDown, MakeupGrades, Position, SieveResult
-from app.routers import athletes, board, coach, evaluations
+from app.routers import athletes, board, coach, evaluations, public
 from app.services.film_grading import build_scouting_prompt
 from app.services.makeup_grade import average_makeup_grade, grade_down
 from app.services.metric_sieve import run_sieve
@@ -41,6 +41,9 @@ app.include_router(athletes.router)
 app.include_router(evaluations.router)
 app.include_router(board.router)
 app.include_router(coach.router)
+# No require_api_key here — this is the anonymous public share-link surface;
+# see app/routers/public.py for exactly what it does and doesn't expose.
+app.include_router(public.router)
 
 # The deployed panel is same-origin. Cross-origin access is explicit in
 # production and remains open only in the named local/demo environments.

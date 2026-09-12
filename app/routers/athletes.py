@@ -3,6 +3,7 @@ Module 7 — coach notes and fit scores nest under the same /athletes/{id}
 resource, since they're all athlete-scoped."""
 from __future__ import annotations
 
+import secrets
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,6 +15,7 @@ from app.core.db import get_db
 from app.models import orm
 from app.models.schemas import (
     Athlete, AthleteCreate, CoachFitScoresIn, CoachFitScoresOut, CoachNoteIn, CoachNoteOut, FilmGradeOut, FilmLinkOut,
+    ShareLinkOut,
 )
 
 router = APIRouter(
@@ -123,6 +125,51 @@ async def list_film_links(athlete_id: UUID, db: AsyncSession = Depends(get_db)):
         )
         for assignment, video in result.all()
     ]
+
+
+@router.get("/{athlete_id}/share-link", response_model=ShareLinkOut | None)
+async def get_share_link(athlete_id: UUID, db: AsyncSession = Depends(get_db)):
+    """The athlete's current public share link, if one has ever been
+    issued — None (not 404) when none exists yet, since "no link issued"
+    is a normal state for the Public Rating view, same pattern as
+    get_fit_scores above."""
+    if await db.get(orm.Athlete, athlete_id) is None:
+        raise HTTPException(status_code=404, detail="Athlete not found.")
+    row = await db.get(orm.AthleteShareLink, athlete_id)
+    if row is None:
+        return None
+    return row
+
+
+@router.post("/{athlete_id}/share-link", response_model=ShareLinkOut, status_code=201)
+async def create_or_regenerate_share_link(athlete_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Issues a fresh, unguessable token for this athlete. athlete_id is
+    the primary key, so this is always an upsert — regenerating silently
+    invalidates whatever link was out there before, which is the intended
+    revoke-by-replacing behavior."""
+    if await db.get(orm.Athlete, athlete_id) is None:
+        raise HTTPException(status_code=404, detail="Athlete not found.")
+    token = secrets.token_urlsafe(24)
+    row = await db.get(orm.AthleteShareLink, athlete_id)
+    if row is None:
+        row = orm.AthleteShareLink(athlete_id=athlete_id, token=token)
+        db.add(row)
+    else:
+        row.token = token
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+@router.delete("/{athlete_id}/share-link", status_code=204)
+async def revoke_share_link(athlete_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Fully revokes public access — deletes the row outright rather than
+    just rotating the token, so GET goes back to reporting "none issued"."""
+    row = await db.get(orm.AthleteShareLink, athlete_id)
+    if row is not None:
+        await db.delete(row)
+        await db.commit()
+    return None
 
 
 @router.get("/{athlete_id}/grades", response_model=list[FilmGradeOut])

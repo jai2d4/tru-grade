@@ -17,6 +17,8 @@ import type {
   FilmGrade,
   FilmLink,
   LegacyPosition,
+  PublicAthlete,
+  ShareLink,
 } from "./types";
 
 export interface AthleteCreate {
@@ -118,5 +120,28 @@ export const evaluations = {
   },
   get(evaluationId: string): Promise<Evaluation> {
     return request<Evaluation>(`/api/v1/evaluations/${evaluationId}`);
+  },
+};
+
+/** Public Rating — the coach-facing side of managing a share link. Issuing
+ * a new one silently invalidates whatever token was out there before. */
+export const shareLinks = {
+  get(athleteId: string): Promise<ShareLink | null> {
+    return request<ShareLink | null>(`/api/v1/athletes/${athleteId}/share-link`);
+  },
+  create(athleteId: string): Promise<ShareLink> {
+    return request<ShareLink>(`/api/v1/athletes/${athleteId}/share-link`, { method: "POST" });
+  },
+  revoke(athleteId: string): Promise<void> {
+    return request<void>(`/api/v1/athletes/${athleteId}/share-link`, { method: "DELETE" });
+  },
+};
+
+/** The anonymous public view a share link unlocks — no X-API-Key required
+ * (see app/routers/public.py), so this reads the same as any other call
+ * here but works from a viewer who never authenticated. */
+export const publicAthletes = {
+  get(token: string): Promise<PublicAthlete> {
+    return request<PublicAthlete>(`/api/v1/public/athletes/${encodeURIComponent(token)}`);
   },
 };
