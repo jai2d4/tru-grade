@@ -13,7 +13,7 @@ from app.core.auth import require_api_key
 from app.core.db import get_db
 from app.models import orm
 from app.models.schemas import (
-    Athlete, AthleteCreate, CoachFitScoresIn, CoachFitScoresOut, CoachNoteIn, CoachNoteOut,
+    Athlete, AthleteCreate, CoachFitScoresIn, CoachFitScoresOut, CoachNoteIn, CoachNoteOut, FilmLinkOut,
 )
 
 router = APIRouter(
@@ -97,3 +97,29 @@ async def get_fit_scores(athlete_id: UUID, db: AsyncSession = Depends(get_db)):
         from datetime import datetime, timezone
         return CoachFitScoresOut(athlete_id=athlete_id, updated_at=datetime.now(timezone.utc))
     return row
+
+
+@router.get("/{athlete_id}/film-links", response_model=list[FilmLinkOut])
+async def list_film_links(athlete_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Every video where a coach has confirmed (or automatic identification
+    has proposed) this athlete's track identity — see
+    backend/api/players.py. Does not include grades: that persistence is a
+    separate, not-yet-built increment (see docs on the unification PR)."""
+    if await db.get(orm.Athlete, athlete_id) is None:
+        raise HTTPException(status_code=404, detail="Athlete not found.")
+    stmt = (
+        select(orm.FilmTrackAssignment, orm.FilmUpload)
+        .join(orm.FilmUpload, orm.FilmUpload.id == orm.FilmTrackAssignment.video_id)
+        .where(orm.FilmTrackAssignment.athlete_id == athlete_id)
+        .order_by(orm.FilmTrackAssignment.updated_at.desc())
+    )
+    result = await db.execute(stmt)
+    return [
+        FilmLinkOut(
+            video_id=assignment.video_id, track_id=assignment.track_id, filename=video.filename,
+            jersey_number=assignment.jersey_number, team=assignment.team, position=assignment.position,
+            confirmed=assignment.confirmed, confidence=assignment.confidence, source=assignment.source,
+            updated_at=assignment.updated_at,
+        )
+        for assignment, video in result.all()
+    ]

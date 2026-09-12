@@ -15,6 +15,9 @@ class JerseyCandidate(BaseModel):
 class TrackIdentity(BaseModel):
     track_id: int = Field(ge=0)
     player_id: str | None = None
+    # The real roster link (athletes.id), when this track has been matched
+    # to a known prospect rather than just a jersey number.
+    athlete_id: str | None = None
     jersey_number: str | None = Field(default=None, pattern=r"^[0-9]{1,2}$")
     team: str | None = None
     position: str | None = None
@@ -24,8 +27,10 @@ class TrackIdentity(BaseModel):
 
 
 def confirm_identity(original: TrackIdentity, *, player_id: str | None, jersey_number: str,
-                     team: str | None, position: str | None, reason: str) -> tuple[TrackIdentity, dict]:
-    confirmed = original.model_copy(update={"player_id": player_id, "jersey_number": jersey_number,
+                     team: str | None, position: str | None, reason: str,
+                     athlete_id: str | None = None) -> tuple[TrackIdentity, dict]:
+    confirmed = original.model_copy(update={"player_id": player_id, "athlete_id": athlete_id,
+                                             "jersey_number": jersey_number,
                                              "team": team, "position": position,
                                              "confidence": 1.0, "confirmed": True})
     audit = {"original_value": original.model_dump(), "new_value": confirmed.model_dump(),
