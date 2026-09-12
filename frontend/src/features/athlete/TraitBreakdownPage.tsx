@@ -5,7 +5,7 @@ import { ViewHeader } from "@/components/chrome";
 import { SelectAthletePrompt } from "./SelectAthletePrompt";
 import { useEvaluations } from "./useEvaluations";
 
-const GRADE_DOWN_ROWS: { key: "overall" | "p4" | "group_of_5" | "fcs" | "d2_d3_naia_juco"; label: string }[] = [
+export const GRADE_DOWN_ROWS: { key: "overall" | "p4" | "group_of_5" | "fcs" | "d2_d3_naia_juco"; label: string }[] = [
   { key: "overall", label: "Overall" },
   { key: "p4", label: "Power 4" },
   { key: "group_of_5", label: "Group of 5" },

@@ -173,9 +173,12 @@ export function runSieve(pos: SievePosition, a: Athlete): SieveResult {
 
 /**
  * TruStar Rating — purely presentational mapping from the real projected tier
- * onto a 5-star readout, echoing the wireframe deck's rating widget.
+ * onto a 5-star readout, echoing the wireframe deck's rating widget. Narrowed
+ * to the two fields it actually reads so callers holding a persisted
+ * evaluation's metric_sieve_results (a slightly different generated type,
+ * missing the client-only `walked` ladder) can pass it directly.
  */
-export function tierStars(r: SieveResult): number {
+export function tierStars(r: Pick<SieveResult, "tier" | "is_game_changer">): number {
   if (r.is_game_changer) return 5;
   const map: Record<string, number> = {
     D1_FBS: 5,
