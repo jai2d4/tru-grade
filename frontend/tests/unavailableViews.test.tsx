@@ -36,7 +36,7 @@ function renderAt(path: string) {
 
 describe("unavailable views", () => {
   it("covers every soon-badged sidebar entry", () => {
-    expect(SOON_ROUTES).toHaveLength(14);
+    expect(SOON_ROUTES).toHaveLength(7);
   });
 
   it.each(SOON_ROUTES)("%s says it is not available", (route) => {

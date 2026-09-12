@@ -42,9 +42,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Athlete",
     items: [
-      { label: "Dashboard", to: "/athlete/dashboard", icon: "home", soon: true },
-      { label: "AI Film Report", to: "/athlete/film-report", icon: "film", soon: true },
-      { label: "Trait Breakdown", to: "/athlete/traits", icon: "star", soon: true },
+      { label: "Dashboard", to: "/athlete/dashboard", icon: "home" },
+      { label: "AI Film Report", to: "/athlete/film-report", icon: "film" },
+      { label: "Trait Breakdown", to: "/athlete/traits", icon: "star" },
       { label: "Recruiting Activity", to: "/athlete/recruiting", icon: "bell", soon: true },
       { label: "Offer Probability", to: "/athlete/offers", icon: "target", soon: true },
       { label: "Public Rating", to: "/athlete/public-rating", icon: "link", soon: true },
@@ -53,11 +53,11 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Coach",
     items: [
-      { label: "Coach Dashboard", to: "/coach/dashboard", icon: "home", soon: true },
-      { label: "Recruitment Board", to: "/coach/board", icon: "users", soon: true },
-      { label: "Player Profile", to: "/coach/player-profile", icon: "user", soon: true },
+      { label: "Coach Dashboard", to: "/coach/dashboard", icon: "home" },
+      { label: "Recruitment Board", to: "/coach/board", icon: "users" },
+      { label: "Player Profile", to: "/coach/player-profile", icon: "user" },
       { label: "Coach 360 Report", to: "/coach/360-report", icon: "brain", soon: true },
-      { label: "Genesis Search", to: "/coach/genesis", icon: "search", soon: true },
+      { label: "Genesis Search", to: "/coach/genesis", icon: "search" },
     ],
   },
 ];
