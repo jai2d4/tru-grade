@@ -25,6 +25,7 @@ from typing import Optional
 
 from app.core.auth import require_api_key
 from app.core.config import get_settings
+from app.core.cors import resolve_cors_allow_origins
 from app.core.db import best_effort_session
 from app.models import orm
 from app.models.schemas import AthleteCreate, GradeDown, MakeupGrades, Position, SieveResult
@@ -41,10 +42,14 @@ app.include_router(evaluations.router)
 app.include_router(board.router)
 app.include_router(coach.router)
 
-# Allow the local demo panel (file:// or localhost) to call the API
+# The deployed panel is same-origin. Cross-origin access is explicit in
+# production and remains open only in the named local/demo environments.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten to your frontend origin in production
+    allow_origins=resolve_cors_allow_origins(
+        settings.APP_ENV,
+        settings.CORS_ALLOW_ORIGINS,
+    ),
     allow_methods=["*"],
     allow_headers=["*"],
 )

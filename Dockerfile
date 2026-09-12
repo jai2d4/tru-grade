@@ -7,6 +7,14 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# Baked into the JS bundle at build time (Vite only reads import.meta.env.VITE_*
+# at build time, never at runtime) and sent back as the X-API-Key header on
+# every request — see frontend/src/api/client.ts. Render passes dashboard env
+# vars through as Docker build args automatically; a local `docker build`
+# needs `--build-arg VITE_API_KEY=...` explicitly, or the bundle just omits
+# the header, matching the frictionless no-auth local-dev default.
+ARG VITE_API_KEY
+ENV VITE_API_KEY=$VITE_API_KEY
 RUN npm run build
 
 # ---- Python runtime -----------------------------------------------------

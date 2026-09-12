@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # disables the check entirely — set this before exposing the app publicly.
     API_KEY: Optional[str] = None
 
+    # Comma-separated browser origins allowed to call the API from a different
+    # origin. Production defaults to same-origin only (an empty allowlist).
+    CORS_ALLOW_ORIGINS: str = ""
+
     # --- PostgreSQL ---
     # Two ways to configure this: a single DATABASE_URL (what Replit, Neon,
     # Railway, and most one-click Postgres add-ons hand you), or the

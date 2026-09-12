@@ -13,6 +13,13 @@ interface Captured {
 
 let calls: Captured[] = [];
 
+/** Every request now carries a real Headers instance (request() merges in an
+ * X-API-Key when one is built in) — pull it back into a plain object for
+ * readable assertions. Headers iterates with lowercased names. */
+function headersOf(init: RequestInit | undefined): Record<string, string> {
+  return Object.fromEntries((init?.headers as Headers).entries());
+}
+
 function mockJson(body: unknown, ok = true, status = 200) {
   return vi.fn((url: string, init?: RequestInit) => {
     calls.push({ url, init });
@@ -49,7 +56,9 @@ describe("film analysis endpoints", () => {
     expect(body).toBeInstanceOf(FormData);
     expect(body.get("file")).toBe(file);
     // The upload must not be sent as JSON — the server reads an UploadFile.
-    expect(calls[0]!.init?.headers).toBeUndefined();
+    // Content-Type is left for the browser to set (with the multipart
+    // boundary), so it must be absent here, not merely non-JSON.
+    expect(headersOf(calls[0]!.init)["content-type"]).toBeUndefined();
   });
 
   it("starts analysis with a bare POST on the video id", async () => {
@@ -64,7 +73,11 @@ describe("film analysis endpoints", () => {
     vi.stubGlobal("fetch", mockJson({ job_id: "j1", video_id: "v1", status: "detecting", progress: 40 }));
     await analysis.status("j1");
     expect(calls[0]!.url).toBe(`${base}/api/analysis/status/j1`);
-    expect(calls[0]!.init).toBeUndefined();
+    // No method/body was ever passed for this bare GET — request() always
+    // attaches a Headers instance now (for the optional API key), so that
+    // alone doesn't make this a non-trivial request.
+    expect(calls[0]!.init?.method).toBeUndefined();
+    expect(calls[0]!.init?.body).toBeUndefined();
   });
 
   it("sends the identity request the automatic identifier expects", async () => {
@@ -78,7 +91,7 @@ describe("film analysis endpoints", () => {
 
     expect(calls[0]!.url).toBe(`${base}/api/videos/v1/identify`);
     expect(calls[0]!.init?.method).toBe("POST");
-    expect(calls[0]!.init?.headers).toEqual({ "Content-Type": "application/json" });
+    expect(headersOf(calls[0]!.init)).toEqual({ "content-type": "application/json" });
     expect(JSON.parse(calls[0]!.init?.body as string)).toEqual({
       jersey_number: "12",
       school_colors: "Red, white, black",
@@ -185,5 +198,33 @@ describe("error handling", () => {
   it("reports the status on the error", async () => {
     vi.stubGlobal("fetch", mockJson({ detail: "nope" }, false, 409));
     await expect(videos.tracks("v1")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("built-in API key", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("attaches X-API-Key when VITE_API_KEY was baked into the bundle", async () => {
+    vi.stubEnv("VITE_API_KEY", "phase16-secret");
+    vi.resetModules();
+    const { videos: freshVideos } = await import("@/api/client");
+
+    vi.stubGlobal("fetch", mockJson({ video_id: "v1", tracks: [], assignments: {} }));
+    await freshVideos.tracks("v1");
+
+    expect(headersOf(calls[0]!.init)["x-api-key"]).toBe("phase16-secret");
+  });
+
+  it("sends no X-API-Key at all when none was built in (the local-dev default)", async () => {
+    vi.resetModules();
+    const { videos: freshVideos } = await import("@/api/client");
+
+    vi.stubGlobal("fetch", mockJson({ video_id: "v1", tracks: [], assignments: {} }));
+    await freshVideos.tracks("v1");
+
+    expect(headersOf(calls[0]!.init)["x-api-key"]).toBeUndefined();
   });
 });
