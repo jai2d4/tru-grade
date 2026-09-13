@@ -118,9 +118,36 @@ AVPixelFormat fullRangeTwin(AVPixelFormat limited) {
     }
 }
 
+/// The pixel formats an encoder accepts, however this FFmpeg spells it.
+///
+/// `AVCodec::pix_fmts` was deprecated in FFmpeg 7.1 and **removed** in the 8/9
+/// series, replaced by `avcodec_get_supported_config`. TRACE builds against
+/// both: Linux CI has libavcodec 60, where only the field exists, and the
+/// Windows job resolves an n9.0 build, where only the function does. The first
+/// version of this file used the field and compiled cleanly on Linux while
+/// failing on Windows with four `is not a member of AVCodec` errors.
+///
+/// Both spellings return a list terminated by `AV_PIX_FMT_NONE`, and both use
+/// a null list to mean "every format is acceptable" — so callers see one
+/// behaviour and the difference stops here.
+const AVPixelFormat* supportedPixelFormats(const AVCodec* encoder) {
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(61, 13, 100)
+    const void* configs = nullptr;
+    int count = 0;
+    if (avcodec_get_supported_config(nullptr, encoder, AV_CODEC_CONFIG_PIX_FORMAT, 0, &configs,
+                                     &count) < 0) {
+        return nullptr;
+    }
+    return static_cast<const AVPixelFormat*>(configs);
+#else
+    return encoder->pix_fmts;
+#endif
+}
+
 bool encoderAccepts(const AVCodec* encoder, AVPixelFormat format) {
-    if (encoder->pix_fmts == nullptr) return true;
-    for (const AVPixelFormat* p = encoder->pix_fmts; *p != AV_PIX_FMT_NONE; ++p) {
+    const AVPixelFormat* formats = supportedPixelFormats(encoder);
+    if (formats == nullptr) return true;
+    for (const AVPixelFormat* p = formats; *p != AV_PIX_FMT_NONE; ++p) {
         if (*p == format) return true;
     }
     return false;
@@ -144,7 +171,8 @@ bool encoderAccepts(const AVCodec* encoder, AVPixelFormat format) {
 ///   the limited range are clipped by the conversion, which is recorded in the
 ///   asset's parameters rather than left for someone to discover.
 AVPixelFormat pixelFormatFor(const AVCodec* encoder, AVPixelFormat source, bool lossless) {
-    if (encoder->pix_fmts == nullptr) return source;
+    const AVPixelFormat* formats = supportedPixelFormats(encoder);
+    if (formats == nullptr) return source;
 
     if (lossless) return encoderAccepts(encoder, source) ? source : AV_PIX_FMT_NONE;
 
@@ -153,7 +181,7 @@ AVPixelFormat pixelFormatFor(const AVCodec* encoder, AVPixelFormat source, bool 
         return full;
     }
     if (encoderAccepts(encoder, source)) return source;
-    return encoder->pix_fmts[0];
+    return formats[0];
 }
 
 /// True for the deprecated `yuvj*` formats, which mean "full range".
