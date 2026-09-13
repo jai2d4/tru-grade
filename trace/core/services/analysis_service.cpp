@@ -74,6 +74,8 @@ Result<AnalysisRun> AnalysisService::startRun(const AnalysisRunDraft& draft) {
     run.sourceWidth = draft.sourceWidth;
     run.sourceHeight = draft.sourceHeight;
     run.evidenceSha256 = draft.evidenceSha256;
+    run.sourceAssetId = draft.sourceAssetId;
+    run.sourceDescription = draft.sourceDescription;
     run.createdBy = UserContext::current().actorName();
     run.createdAt = run.startedAt.value_or(nowIso8601Utc());
 

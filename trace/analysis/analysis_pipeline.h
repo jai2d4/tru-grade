@@ -27,6 +27,15 @@ struct DetectionAnalysisRequest {
     std::string evidenceNumber;
     std::filesystem::path mediaPath;
     std::string evidenceSha256;
+    /// Set when `mediaPath` is a working copy rather than the managed original.
+    ///
+    /// The pipeline does not infer this. It decodes whatever path it is given
+    /// and cannot tell a working copy from an original by looking at one, so a
+    /// caller that substitutes a working copy has to say so — and the run
+    /// records it, because a detection found on a lossy re-encode is a
+    /// different claim from one found on the evidence itself.
+    std::optional<std::string> sourceAssetId;
+    std::optional<std::string> sourceDescription;
     /// Needed only when the managed original is an encrypted container. Held as
     /// a borrowed pointer for the length of the run, like every other decode
     /// path; analysis never writes to the evidence, encrypted or not.

@@ -67,7 +67,24 @@ struct AnalysisRun {
     std::optional<std::int64_t> samplingIntervalUs;
     std::optional<std::int64_t> sourceWidth;
     std::optional<std::int64_t> sourceHeight;
+    /// The digest the *evidence* had when the run started, whatever was
+    /// actually decoded. A working copy does not change what the evidence is.
     std::string evidenceSha256;
+
+    /// The working copy this run analysed, when it did not analyse the
+    /// original. Empty means the original, which is the only thing runs
+    /// recorded before working copies existed could have meant.
+    ///
+    /// A detection found on a lossy working copy was found on re-compressed
+    /// pixels, so this is not bookkeeping: it is the difference between two
+    /// claims about what was observed, and a report has to be able to tell them
+    /// apart.
+    std::optional<std::string> sourceAssetId;
+    /// The same fact in words, kept because it has to outlive the asset row.
+    /// Deleting a working copy to reclaim disk clears `sourceAssetId` but must
+    /// not turn a run over a lossy copy into one that reads as having examined
+    /// the original.
+    std::optional<std::string> sourceDescription;
 
     std::optional<std::string> errorMessage;
     std::string warningsJson = "[]";

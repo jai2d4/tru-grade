@@ -63,7 +63,7 @@ Phase 1 — it is a real menu action now.
 | Another detection runtime (TensorRT, OpenVINO, a remote service) | `IDetectionProvider` + registry; no core, UI, storage or schema change needed |
 | Another analysis *type* (audio events, scene classification) | `analysis_runs.analysis_type`, its own results table keyed to the run, a new pipeline in `analysis/` |
 | More timeline lanes | `TimelineWidget::setTracks` already draws point and range markers on arbitrary rows; it knows nothing about detections |
-| Working copies and transcodes | `working/` directory and `DerivedAssetType::WorkingCopy` |
+| ~~Working copies and transcodes~~ | Built. `media/working/`, filed into `working/` as `DerivedAssetType::WorkingCopy` |
 | GPU decode | Built, off by default. Enumeration and fallback are tested; the accelerated path has never run on a GPU. See `docs/HARDWARE_DECODE.md` |
 | Multi-user deployments | `users` table, `UserRole`/`Permission` gate already enforced in services, including detection review |
 | Reports and exhibits | `reports/` and `exports/` directories; the run record answers what a report must cite |
@@ -155,9 +155,30 @@ Still open from this area:
   when the probe cannot tell. See `docs/PHASE1_TESTING.md`. The probe itself is written
   and unexecuted, because this build's ONNX Runtime is CPU-only. It needs a machine with an NVIDIA device, a GPU package of ONNX Runtime and a
   measured comparison before any GPU performance claim is made.
-- **Working copies** — a proportionate transcode for awkward codecs, recorded as a
-  derived asset with its parameters, so analysis runs on a known format while the
-  original stays untouched.
+- ~~**Working copies**~~ — built. An all-intra re-encode analysis can run against
+  instead of an original that decodes badly, filed as a derived asset with its
+  transcode parameters. FFV1 by default because lossless turned out to cost 45% more
+  than Motion JPEG at 1080p rather than the multiple that had been assumed, against a
+  claim that is categorically stronger. See `docs/WORKING_COPIES.md`.
+
+  The part that mattered was the timeline. A working copy is worthless unless a
+  detection at 00:05:12.340 in it means 00:05:12.340 in the original, so source
+  timestamps are carried across rather than recomputed, the frame rate is never
+  changed, and the result is **verified frame by frame against the original before
+  the asset exists**. That check earned its place immediately: the first working
+  implementation produced files whose video ran 23ms late against both its own audio
+  and the original, because a compressed audio track's priming packet sits before
+  zero and Matroska shifts the video to compensate. Nothing about the picture would
+  have looked wrong.
+
+  It also drew a licensing line in code rather than in a comment. Every H.264 encoder
+  FFmpeg can reach is GPL or hardware-specific, and the Ubuntu system FFmpeg offers
+  `libx264` — so an implementation that used it would have built and passed every test
+  on Linux while making TRACE undistributable. Named GPL encoders are now refused
+  whether or not the linked build contains them.
+
+  When analysis runs against a working copy the run says so, because a detection found
+  on re-compressed pixels is a different claim from one found on the evidence.
 - ~~**Local accounts**~~ — built. PBKDF2-HMAC-SHA256, lockout, an audited sign-in and
   a role gate with teeth. See `docs/AUTHENTICATION.md`, whose §6 lists what it
   deliberately does not protect.

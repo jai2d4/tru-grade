@@ -28,7 +28,7 @@ The connection is serialised behind a recursive mutex. `Transaction` scopes nest
 | `derived_assets` | Outputs, with digests | `evidence_id` CASCADE, `operation_id` SET NULL |
 | `bookmarks` | Marked moments | `evidence_id`, CASCADE |
 | `annotations` | Timestamp and range notes | `evidence_id`, CASCADE |
-| `analysis_runs` | One execution of an analysis over one item | `case_id`, `evidence_id`, CASCADE |
+| `analysis_runs` | One execution of an analysis over one item | `case_id`, `evidence_id`, CASCADE; `source_asset_id` SET NULL |
 | `detections` | What a model reported, one row per object per analysed frame | `analysis_run_id`, `case_id`, `evidence_id`, CASCADE |
 | `audit_events` | Append-only history | **no foreign keys — deliberately** |
 | `application_settings` | Key/value settings | — |
@@ -69,6 +69,25 @@ thousands of detections cannot disagree about which model produced them. See
 Bounding boxes are stored **normalised to the source frame** (`bbox_x/y/w/h`, 0–1) with
 pixel values alongside as a convenience. Normalised geometry stays correct when the item
 is drawn at another size, which pixel coordinates do not.
+
+### Why `analysis_runs.source_asset_id` is SET NULL rather than CASCADE
+
+A run may analyse a **working copy** — a re-encode of an original that decodes and seeks
+predictably; see [WORKING_COPIES.md](WORKING_COPIES.md). `source_asset_id` names it, and
+NULL means the run analysed the original.
+
+Deleting a working copy to reclaim disk must not delete the analysis that ran on it. The
+run and its detections are findings; the working copy is a convenience regenerable from
+the original and its recorded parameters. So the reference clears rather than cascading.
+
+That leaves a gap, which is why `source_description` exists beside it. Without a copy of
+the fact in words, deleting a working copy would quietly turn a run over a **lossy**
+re-encode into one that reads as having examined the evidence itself — and a detection
+found on re-compressed pixels is a different claim. The description survives the asset
+row.
+
+Rows written before migration 0007 are NULL, and no backfill would be honest: the column
+means "this named derived asset", and there was none.
 
 `analysis_runs.sampling_interval_us` is a column rather than a field inside
 `configuration_json` because the viewer needs it to decide which analysed frame belongs

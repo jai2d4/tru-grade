@@ -16,6 +16,7 @@ add_library(trace_media STATIC
     thumbnails/image_writer.cpp
     thumbnails/frame_export_service.cpp
     export/clip_export_service.cpp
+    working/working_copy_service.cpp
     capture/camera.cpp
     capture/capture_session.cpp
     capture/capture_service.cpp

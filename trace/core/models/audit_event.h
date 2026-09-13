@@ -76,6 +76,12 @@ enum class AuditAction {
     CaptureFailed,
     CaptureInterrupted,   ///< the link dropped mid-recording; a gap was recorded
     CameraDiscovered,
+    // A working copy is a re-encode of an original that analysis may run
+    // against instead of the original. Distinct from DerivedAssetCreated
+    // because it is the one derived asset that later *results* are attributed
+    // to, so "which working copies exist and when were they made" is a question
+    // the trail has to answer on its own.
+    WorkingCopyCreated,
     Unknown,
 };
 
