@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdlib>
+#include <functional>
 #include <fstream>
 #include <set>
 
@@ -118,6 +119,104 @@ PacketFacts readPacketFacts(const std::filesystem::path& file) {
     return facts;
 }
 
+
+/// Remuxes `source` into `destination`, transforming each video timestamp and
+/// optionally dropping frames.
+///
+/// Built with libavformat rather than by shelling out to the ffmpeg CLI. The
+/// CLI is not a declared build dependency and is not guaranteed to be on PATH
+/// on every runner, so a test that called it would fail for a reason that had
+/// nothing to do with the code under test — and would do it only on the machine
+/// that lacked it. libavformat is already linked here.
+///
+/// Stream copy throughout: this deliberately does not re-encode, so the only
+/// thing that differs from the input is the timing, which is what the check
+/// being exercised looks at.
+bool remuxWithTimestamps(const std::filesystem::path& source,
+                         const std::filesystem::path& destination,
+                         const std::function<std::int64_t(std::int64_t, std::int64_t)>& transform,
+                         bool keepEveryOtherFrameOnly = false) {
+    AVFormatContext* in = nullptr;
+    if (avformat_open_input(&in, source.string().c_str(), nullptr, nullptr) < 0) return false;
+    struct InCloser {
+        AVFormatContext** f;
+        ~InCloser() { if (*f != nullptr) avformat_close_input(f); }
+    } inCloser{&in};
+    if (avformat_find_stream_info(in, nullptr) < 0) return false;
+
+    int videoStream = -1;
+    for (unsigned int i = 0; i < in->nb_streams; ++i) {
+        if (in->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            videoStream = static_cast<int>(i);
+            break;
+        }
+    }
+    if (videoStream < 0) return false;
+
+    AVFormatContext* out = nullptr;
+    if (avformat_alloc_output_context2(&out, nullptr, "matroska",
+                                       destination.string().c_str()) < 0 ||
+        out == nullptr) {
+        return false;
+    }
+    struct OutCloser {
+        AVFormatContext** f;
+        ~OutCloser() {
+            if (*f == nullptr) return;
+            if ((*f)->pb != nullptr && ((*f)->oformat->flags & AVFMT_NOFILE) == 0) {
+                avio_closep(&(*f)->pb);
+            }
+            avformat_free_context(*f);
+            *f = nullptr;
+        }
+    } outCloser{&out};
+
+    AVStream* outVideo = avformat_new_stream(out, nullptr);
+    if (outVideo == nullptr) return false;
+    if (avcodec_parameters_copy(outVideo->codecpar, in->streams[videoStream]->codecpar) < 0) {
+        return false;
+    }
+    outVideo->codecpar->codec_tag = 0;
+    outVideo->time_base = in->streams[videoStream]->time_base;
+
+    if ((out->oformat->flags & AVFMT_NOFILE) == 0 &&
+        avio_open(&out->pb, destination.string().c_str(), AVIO_FLAG_WRITE) < 0) {
+        return false;
+    }
+    out->avoid_negative_ts = AVFMT_AVOID_NEG_TS_DISABLED;
+    if (avformat_write_header(out, nullptr) < 0) return false;
+
+    AVPacket* packet = av_packet_alloc();
+    if (packet == nullptr) return false;
+    std::int64_t index = 0;
+    bool ok = true;
+    while (av_read_frame(in, packet) >= 0) {
+        if (packet->stream_index != videoStream) {
+            av_packet_unref(packet);
+            continue;
+        }
+        if (keepEveryOtherFrameOnly && (index % 2) != 0) {
+            ++index;
+            av_packet_unref(packet);
+            continue;
+        }
+        if (packet->pts != AV_NOPTS_VALUE) packet->pts = transform(packet->pts, index);
+        if (packet->dts != AV_NOPTS_VALUE) packet->dts = transform(packet->dts, index);
+        packet->stream_index = outVideo->index;
+        packet->pos = -1;
+        if (av_interleaved_write_frame(out, packet) < 0) {
+            ok = false;
+            av_packet_unref(packet);
+            break;
+        }
+        av_packet_unref(packet);
+        ++index;
+    }
+    av_packet_free(&packet);
+    if (ok) ok = av_write_trailer(out) >= 0;
+    return ok;
+}
+
 // ─────────────────────────────────────────── the licensing boundary
 
 TEST(WorkingCopyTest, RefusesGplEncodersByNameEvenWhenTheBuildOffersThem) {
@@ -215,13 +314,9 @@ TEST(WorkingCopyTest, TheTimelineCheckCatchesAStretchedTimeline) {
     // A frame-count comparison passes, the file plays, and every detection
     // after the first is reported at the wrong moment — increasingly so.
     const auto stretched = fixture.dataRoot.path() / "stretched.mkv";
-    ASSERT_EQ(std::system(("ffmpeg -v quiet -y -i " + copy.string() +
-                           " -vf setpts=1.5*PTS -c:v mjpeg -pix_fmt yuvj420p -q:v 3"
-                           " -fps_mode passthrough -an " +
-                           stretched.string())
-                              .c_str()),
-              0)
-        << "this test needs the ffmpeg CLI to build a deliberately mistimed file";
+    ASSERT_TRUE(remuxWithTimestamps(copy, stretched, [](std::int64_t ts, std::int64_t) {
+        return (ts * 3) / 2;
+    }));
 
     auto drifted = verifyTimelineMatches(fixture.managedOriginal(), stretched);
     ASSERT_FALSE(drifted.ok()) << "a stretched timeline must not pass as the same timeline";
@@ -244,10 +339,9 @@ TEST(WorkingCopyTest, AUniformOffsetIsDeliberatelyAccepted) {
     // on purpose, and this test is here to say that it is a decision rather
     // than a gap.
     const auto offset = fixture.dataRoot.path() / "offset.mkv";
-    ASSERT_EQ(std::system(("ffmpeg -v quiet -y -itsoffset 2 -i " + copy.string() + " -c copy " +
-                           offset.string())
-                              .c_str()),
-              0);
+    ASSERT_TRUE(remuxWithTimestamps(copy, offset, [](std::int64_t ts, std::int64_t) {
+        return ts + 2000;  // the copy's time base is milliseconds
+    }));
 
     auto shifted = verifyTimelineMatches(fixture.managedOriginal(), offset);
     EXPECT_TRUE(shifted.ok()) << "a uniform offset is unobservable to TRACE and must not be "
@@ -264,11 +358,8 @@ TEST(WorkingCopyTest, TheTimelineCheckCatchesAMissingFrame) {
     // Half the frames, same timeline origin: the kind of thing a frame-rate
     // conversion produces, and the reason TRACE never does one.
     const auto decimated = fixture.dataRoot.path() / "decimated.mkv";
-    ASSERT_EQ(std::system(("ffmpeg -v quiet -y -i " + copy.string() +
-                           " -vf select='not(mod(n\\,2))' -vsync 0 -c:v mjpeg -an " +
-                           decimated.string())
-                              .c_str()),
-              0);
+    ASSERT_TRUE(remuxWithTimestamps(
+        copy, decimated, [](std::int64_t ts, std::int64_t) { return ts; }, true));
 
     auto dropped = verifyTimelineMatches(fixture.managedOriginal(), decimated);
     ASSERT_FALSE(dropped.ok());
