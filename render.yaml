@@ -4,7 +4,7 @@
 # them together automatically. You only have to type in your Gemini key.
 databases:
   - name: tru-scouting-db
-    plan: free
+    plan: 0.1c-256mb   # matches the actual live plan — "free" Postgres isn't offered for new/synced databases anymore
     databaseName: tru_scouting
     user: tru_admin
 
@@ -12,7 +12,7 @@ services:
   - type: web
     name: tru-scouting-engine
     runtime: docker
-    plan: free
+    plan: 0.5c-512mb   # matches the actual live plan
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health/ready
     envVars:
