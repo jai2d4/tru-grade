@@ -292,6 +292,7 @@ as importantly, what was not.
 | [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | How passwords are stored, why not SHA-256, and what local accounts do *not* protect |
 | [docs/ENCRYPTION.md](docs/ENCRYPTION.md) | What is encrypted, the key hierarchy, and §6: what encryption at rest does *not* protect |
 | [docs/HARDWARE_DECODE.md](docs/HARDWARE_DECODE.md) | Why GPU decode is off by default, where it is deliberately not used, and how to check it on your own hardware |
+| [docs/WORKING_COPIES.md](docs/WORKING_COPIES.md) | Analysis-safe re-encodes: why the timeline is the whole problem, why H.264 is not an option, and what a copy costs |
 | [docs/CAMERA_INGEST.md](docs/CAMERA_INGEST.md) | Cable, WiFi and Bluetooth — what each actually is, why capturing is not ingesting, and what has not been run |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What Phase 2+ adds and the extension points waiting for it |
 

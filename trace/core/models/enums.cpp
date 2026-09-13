@@ -368,6 +368,7 @@ const char* toString(AuditAction action) {
         case AuditAction::DerivedAssetCreated:       return "derived_asset.created";
         case AuditAction::ExportCreated:             return "export.created";
         case AuditAction::ClipExported:              return "clip.exported";
+        case AuditAction::WorkingCopyCreated:        return "working_copy.created";
         case AuditAction::ReportCreated:             return "report.created";
         case AuditAction::ReportExported:            return "report.exported";
         case AuditAction::ReportExportFailed:        return "report.export_failed";
@@ -432,6 +433,7 @@ const char* toDisplayString(AuditAction action) {
         case AuditAction::DerivedAssetCreated:       return "Derived asset created";
         case AuditAction::ExportCreated:             return "Export created";
         case AuditAction::ClipExported:              return "Clip exported";
+        case AuditAction::WorkingCopyCreated:        return "Working copy created";
         case AuditAction::ReportCreated:             return "Report created";
         case AuditAction::ReportExported:            return "Report exported";
         case AuditAction::ReportExportFailed:        return "Report export failed";
@@ -496,6 +498,7 @@ AuditAction auditActionFromString(const std::string& text) {
         {"derived_asset.created", AuditAction::DerivedAssetCreated},
         {"export.created", AuditAction::ExportCreated},
         {"clip.exported", AuditAction::ClipExported},
+        {"working_copy.created", AuditAction::WorkingCopyCreated},
         {"report.created", AuditAction::ReportCreated},
         {"report.exported", AuditAction::ReportExported},
         {"report.export_failed", AuditAction::ReportExportFailed},

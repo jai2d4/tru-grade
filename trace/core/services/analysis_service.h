@@ -37,6 +37,11 @@ struct AnalysisRunDraft {
     std::optional<std::int64_t> sourceHeight;
     /// Digest the evidence carried when the run began.
     std::string evidenceSha256;
+
+    /// Set when the run analysed a working copy rather than the original. See
+    /// `AnalysisRun::sourceAssetId` for why the distinction is recorded.
+    std::optional<std::string> sourceAssetId;
+    std::optional<std::string> sourceDescription;
 };
 
 /// Persistence and audit policy for analysis runs and their detections.

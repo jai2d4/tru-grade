@@ -14,7 +14,8 @@ constexpr const char* kRunColumns =
     "model_name, model_version, model_sha256, model_relpath, device_requested, device_used, "
     "configuration_json, status, started_at, completed_at, frames_analyzed, frames_expected, "
     "detections_stored, analyzed_duration_us, sampling_interval_us, source_width, "
-    "source_height, evidence_sha256, error_message, warnings_json, created_by, created_at";
+    "source_height, evidence_sha256, error_message, warnings_json, created_by, created_at, "
+    "source_asset_id, source_description";
 
 constexpr const char* kDetectionColumns =
     "id, analysis_run_id, case_id, evidence_id, timestamp_us, frame_number, class_id, "
@@ -53,6 +54,8 @@ AnalysisRun readRun(const Statement& stmt) {
     run.warningsJson = stmt.columnText(26);
     run.createdBy = stmt.columnText(27);
     run.createdAt = stmt.columnText(28);
+    run.sourceAssetId = stmt.columnOptionalText(29);
+    run.sourceDescription = stmt.columnOptionalText(30);
     return run;
 }
 
@@ -127,7 +130,7 @@ Status AnalysisRepository::insertRun(const AnalysisRun& run) {
     auto prepared = database_->prepare(
         std::string("INSERT INTO analysis_runs (") + kRunColumns +
         ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?, ?, ?);");
+        "?, ?, ?, ?, ?, ?);");
     if (!prepared) return Status(prepared.error());
 
     Statement stmt = prepared.take();
@@ -159,7 +162,9 @@ Status AnalysisRepository::insertRun(const AnalysisRun& run) {
         .bindOptional(26, run.errorMessage)
         .bind(27, run.warningsJson)
         .bind(28, run.createdBy)
-        .bind(29, run.createdAt);
+        .bind(29, run.createdAt)
+        .bindOptional(30, run.sourceAssetId)
+        .bindOptional(31, run.sourceDescription);
     return stmt.run();
 }
 

@@ -131,6 +131,8 @@ Result<AnalysisOutcome> AnalysisPipeline::execute(const DetectionAnalysisRequest
     draft.modelRelPath = descriptor ? std::optional<std::string>(descriptor->fileName) : std::nullopt;
     draft.deviceRequested = toString(request.device);
     draft.evidenceSha256 = request.evidenceSha256;
+    draft.sourceAssetId = request.sourceAssetId;
+    draft.sourceDescription = request.sourceDescription;
 
     const Microseconds interval = samplingIntervalUs(request.quality, request.customIntervalUs);
     draft.samplingIntervalUs = interval;
@@ -144,6 +146,11 @@ Result<AnalysisOutcome> AnalysisPipeline::execute(const DetectionAnalysisRequest
                                   .set("max_detections_per_frame",
                                        static_cast<std::int64_t>(request.maximumDetectionsPerFrame))
                                   .set("device_requested", toString(request.device))
+                                  .set("analysed_the_original",
+                                       !request.sourceAssetId.has_value())
+                                  .set("analysed_source",
+                                       request.sourceDescription.value_or(
+                                           "the managed original evidence file"))
                                   // The decoder is opened further down, so this
                                   // is what was asked for. What actually decoded
                                   // is a warning on the run when the two differ,

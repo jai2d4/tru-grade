@@ -23,6 +23,7 @@
 #include "core/services/derived_asset_service.h"
 #include "media/audio/waveform_service.h"
 #include "media/export/clip_export_service.h"
+#include "media/working/working_copy_service.h"
 #include "media/ffmpeg/audio_decoder.h"
 #include "media/ffmpeg/media_probe.h"
 #include "media/ffmpeg/video_decoder.h"
@@ -567,6 +568,7 @@ struct EncryptedStack {
     std::unique_ptr<FrameExportService> frames;
     std::unique_ptr<WaveformService> waveforms;
     std::unique_ptr<ClipExportService> clips;
+    std::unique_ptr<WorkingCopyService> workingCopies;
 
     explicit EncryptedStack(const std::string& prefix) : root(prefix) {}
 
@@ -593,6 +595,7 @@ struct EncryptedStack {
         frames = std::make_unique<FrameExportService>(*layout, derivedAssets);
         waveforms = std::make_unique<WaveformService>(*layout, derivedAssets);
         clips = std::make_unique<ClipExportService>(*layout, derivedAssets);
+        workingCopies = std::make_unique<WorkingCopyService>(*layout, derivedAssets);
         return true;
     }
 };
@@ -1016,6 +1019,48 @@ TEST_F(EncryptedWorkspace, AClipCanBeExtractedFromAnEncryptedOriginal) {
     auto opened = VideoDecoder::open(stored, handle.get());
     ASSERT_TRUE(opened.ok()) << opened.error().toString();
     EXPECT_GT(opened.value()->info().width, 0);
+}
+
+TEST_F(EncryptedWorkspace, AWorkingCopyOfEncryptedEvidenceIsItselfEncryptedAndStillAnalysable) {
+    EncryptedStack stack("trace-derived-working");
+    ASSERT_TRUE(stack.open());
+    const EncryptedCase owner = ingestOne(stack, "CASE-DER-6");
+    ASSERT_FALSE(owner.evidence.id.empty());
+
+    auto key = stack.evidence->caseKey(owner.caseRecord.id);
+    ASSERT_TRUE(key.ok());
+    const CaseKeyHandle handle = key.take();
+
+    WorkingCopyRequest request;
+    request.caseId = owner.caseRecord.id;
+    request.caseNumber = owner.caseRecord.caseNumber;
+    request.evidence = owner.evidence;
+    request.codec = WorkingCopyCodec::MotionJpeg;
+    request.convertUpToUs = 2'000'000;
+    request.key = handle.get();
+
+    auto produced = stack.workingCopies->create(request);
+    ASSERT_TRUE(produced.ok()) << produced.error().toString();
+    const WorkingCopyOutcome outcome = produced.take();
+
+    // Both halves have to hold at once. The input is a container, so the
+    // transcode reads through the decrypting IO layer; the output is a derived
+    // asset, so it is written into a container of its own. A working copy left
+    // in the clear would be a decodable copy of the evidence sitting beside the
+    // encrypted original, which is the whole thing encryption at rest is for.
+    const auto stored = stack.layout->resolve(outcome.asset.storageRelPath);
+    ASSERT_TRUE(std::filesystem::exists(stored));
+    EXPECT_TRUE(crypto::looksEncrypted(stored));
+
+    // And it still decodes, which is the only reason to have made it.
+    auto opened = VideoDecoder::open(stored, handle.get());
+    ASSERT_TRUE(opened.ok()) << opened.error().toString();
+    EXPECT_EQ(opened.value()->info().width, 320);
+
+    // The timeline check ran against the encrypted pair, not against plaintext
+    // copies of them.
+    EXPECT_TRUE(outcome.timelineVerified);
+    EXPECT_GT(outcome.timestampsCompared, 0);
 }
 
 TEST_F(EncryptedWorkspace, ALockedWorkspaceRefusesToFileADerivedAssetInTheClear) {

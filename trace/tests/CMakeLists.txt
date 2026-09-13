@@ -53,6 +53,7 @@ add_executable(trace_integration_tests
     integration/hardware_decode_test.cpp
     integration/camera_capture_test.cpp
     integration/report_export_test.cpp
+    integration/working_copy_test.cpp
 )
 target_link_libraries(trace_integration_tests PRIVATE
     trace_test_support trace_core trace_media trace_ai trace_reporting
