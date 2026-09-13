@@ -36,6 +36,8 @@ class Settings(BaseSettings):
 
     # --- App ---
     APP_ENV: str = "development"
+    # Passed straight to logging.getLogger().setLevel() — see app/core/logging_config.py.
+    LOG_LEVEL: str = "INFO"
     UPLOAD_TMP_DIR: str = "/tmp/tru_uploads"
     MAX_UPLOAD_MB: int = 500
     GEMINI_FILE_PROCESSING_TIMEOUT_S: int = 21600

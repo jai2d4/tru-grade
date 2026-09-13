@@ -27,6 +27,7 @@ from app.core.auth import require_api_key
 from app.core.config import get_settings
 from app.core.cors import resolve_cors_allow_origins
 from app.core.db import best_effort_session
+from app.core.logging_config import RequestIDMiddleware, configure_logging
 from app.models import orm
 from app.models.schemas import AthleteCreate, GradeDown, MakeupGrades, Position, SieveResult
 from app.routers import athletes, auth, board, coach, evaluations, public
@@ -34,8 +35,9 @@ from app.services.film_grading import build_scouting_prompt
 from app.services.makeup_grade import average_makeup_grade, grade_down
 from app.services.metric_sieve import run_sieve
 
-logger = logging.getLogger("tru.main")
 settings = get_settings()
+configure_logging(settings.LOG_LEVEL)
+logger = logging.getLogger("tru.main")
 app = FastAPI(title="TRU_Scouting_Engine_Backend", version="1.0.0")
 app.include_router(athletes.router)
 app.include_router(evaluations.router)
@@ -63,6 +65,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Structured, per-request-correlated access logging — see
+# app/core/logging_config.py for the full rationale. Every response also
+# carries the same X-Request-ID back to the caller.
+app.add_middleware(RequestIDMiddleware)
 
 # Native Google GenAI client — reads GEMINI_API_KEY from environment
 ai_client = genai.Client()

@@ -32,4 +32,7 @@ COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 ENV PORT=8000
 EXPOSE 8000
 
-CMD ["sh", "-c", "python scripts/init_db.py; uvicorn backend.main:app --host 0.0.0.0 --port ${PORT}"]
+# --no-access-log: app/core/logging_config.py's RequestIDMiddleware logs a
+# structured, request-ID-correlated line per request already — uvicorn's own
+# plain-text access log would just be a redundant second copy of every line.
+CMD ["sh", "-c", "python scripts/init_db.py; uvicorn backend.main:app --host 0.0.0.0 --port ${PORT} --no-access-log"]
