@@ -342,17 +342,80 @@ describe("Coach 360 Report route", () => {
 });
 
 describe("Genesis Search route", () => {
-  it("says up front it is structured filtering, not natural language, before any search", async () => {
+  it("touches no athlete data until a search is actually run", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
     renderAt("/coach/genesis");
 
-    expect(await screen.findByText(/not natural language yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/ask genesis/i)).toBeInTheDocument();
     // AuthProvider checks /api/v1/auth/me on every page load (Phase 21) —
     // that's expected; no athlete-specific data should be fetched.
     const urls = fetchSpy.mock.calls.map((call) => String(call[0]));
     expect(urls.every((url) => url.endsWith("/api/v1/auth/me"))).toBe(true);
+  });
+
+  it("parses a natural-language query into real filters and shows the interpretation before results", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.endsWith("/api/v1/scout/genesis-query") && init?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                position: "OL",
+                weight_lbs_min: 300,
+                gpa_min: null,
+                grad_year_min: null,
+                grad_year_max: null,
+                height_in_min: null,
+                height_in_max: null,
+                weight_lbs_max: null,
+                forty_s_max: null,
+                shuttle_s_max: null,
+                bench_lbs_min: null,
+                squat_lbs_min: null,
+                sat_min: null,
+                act_min: null,
+                state: null,
+                school_contains: null,
+                name_contains: null,
+                interpretation_note: "Searching for offensive linemen at least 300 lbs.",
+              }),
+          } as Response);
+        }
+        if (url.includes("/api/v1/athletes")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve([
+                {
+                  id: "a1", first_name: "Big", last_name: "Tackle", position: "OL", weight_lbs: 310,
+                  created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+                },
+                {
+                  id: "a2", first_name: "Small", last_name: "Guard", position: "OL", weight_lbs: 260,
+                  created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+                },
+              ]),
+          } as Response);
+        }
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) } as Response);
+      }),
+    );
+
+    renderAt("/coach/genesis");
+    await userEvent.type(screen.getByLabelText(/describe who you're looking for/i), "linemen over 300 lbs");
+    await userEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(await screen.findByText(/searching for offensive linemen at least 300 lbs/i)).toBeInTheDocument();
+    expect(screen.getByText("Weight: 300–any lbs")).toBeInTheDocument();
+    expect(await screen.findByText("Big Tackle")).toBeInTheDocument();
+    // Only the athlete who actually clears the parsed weight threshold appears.
+    expect(screen.queryByText("Small Guard")).not.toBeInTheDocument();
   });
 
   it("filters the real roster by name on search", async () => {

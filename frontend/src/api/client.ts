@@ -12,6 +12,8 @@ import type {
   CalibrationResult,
   FilmJob,
   FilmJobCreated,
+  GenesisQueryRequest,
+  GenesisQueryResult,
   GradesResponse,
   IdentifyRequest,
   IdentityResult,
@@ -133,6 +135,11 @@ const FILM_JOBS = "/api/v1/scout/analyze-film/jobs";
 export const scout = {
   playerLookup(body: PlayerLookupRequest): Promise<PlayerLookupResponse> {
     return request<PlayerLookupResponse>("/api/v1/scout/player-lookup", json(body));
+  },
+  /** Genesis Search's real natural-language layer — parses free text into
+   * structured roster filters. See types.ts's GenesisQueryResult comment. */
+  genesisQuery(body: GenesisQueryRequest): Promise<GenesisQueryResult> {
+    return request<GenesisQueryResult>("/api/v1/scout/genesis-query", json(body));
   },
   /**
    * The film job accepts multipart with exactly one of `file` or `youtube_url`,

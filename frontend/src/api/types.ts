@@ -222,6 +222,39 @@ export interface PlayerLookupResponse {
   sources?: LookupSource[];
 }
 
+/* ---------- Genesis Search natural-language layer ----------
+ * app/main.py GenesisQueryRequest / GenesisQueryResult — a free-text query
+ * parsed into the same structured fields the roster already supports.
+ * Every field is optional on purpose: null means "not stated in the
+ * query", never a guessed value, and the frontend always shows
+ * interpretation_note next to the parsed filters before using them.
+ */
+
+export interface GenesisQueryRequest {
+  query: string;
+}
+
+export interface GenesisQueryResult {
+  position?: string | null;
+  grad_year_min?: number | null;
+  grad_year_max?: number | null;
+  height_in_min?: number | null;
+  height_in_max?: number | null;
+  weight_lbs_min?: number | null;
+  weight_lbs_max?: number | null;
+  forty_s_max?: number | null;
+  shuttle_s_max?: number | null;
+  bench_lbs_min?: number | null;
+  squat_lbs_min?: number | null;
+  gpa_min?: number | null;
+  sat_min?: number | null;
+  act_min?: number | null;
+  state?: string | null;
+  school_contains?: string | null;
+  name_contains?: string | null;
+  interpretation_note: string;
+}
+
 export type MakeupRank = "GAME_CHANGER" | "ALL_CONF" | "WIN_PLUS" | "WIN" | "WIN_MINUS" | "NGE";
 
 export interface FilmAnalysis {

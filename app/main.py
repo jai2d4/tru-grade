@@ -79,6 +79,37 @@ class PlayerLookupRequest(BaseModel):
     school: Optional[str] = Field(None, max_length=128)
 
 
+class GenesisQueryRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=500)
+
+
+class GenesisQueryResult(BaseModel):
+    """Genesis Search's real natural-language layer: a plain-English query
+    parsed into the same structured fields the roster already supports.
+    Loosely typed on purpose — a malformed or unexpected value from the
+    model degrades to "that one filter is ignored", never a hard failure
+    of the whole search. `interpretation_note` is always shown to the
+    coach alongside the parsed filters, so this is never a black box."""
+    position: Optional[str] = None
+    grad_year_min: Optional[int] = None
+    grad_year_max: Optional[int] = None
+    height_in_min: Optional[float] = None
+    height_in_max: Optional[float] = None
+    weight_lbs_min: Optional[float] = None
+    weight_lbs_max: Optional[float] = None
+    forty_s_max: Optional[float] = None
+    shuttle_s_max: Optional[float] = None
+    bench_lbs_min: Optional[float] = None
+    squat_lbs_min: Optional[float] = None
+    gpa_min: Optional[float] = None
+    sat_min: Optional[int] = None
+    act_min: Optional[int] = None
+    state: Optional[str] = None
+    school_contains: Optional[str] = None
+    name_contains: Optional[str] = None
+    interpretation_note: str = "Could not summarize this search."
+
+
 def _grounding_sources(response) -> list[dict]:
     """Return only URLs Gemini actually used for Google Search grounding."""
     found: list[dict] = []
@@ -134,6 +165,56 @@ async def player_lookup(request: PlayerLookupRequest):
     except Exception as exc:
         logger.exception("player lookup failed")
         raise HTTPException(status_code=502, detail=f"Player lookup failed: {exc}")
+
+
+@app.post("/api/v1/scout/genesis-query", response_model=GenesisQueryResult, dependencies=[Depends(require_api_key)])
+async def genesis_query(request: GenesisQueryRequest):
+    """Genesis Search's natural-language layer: parses a free-text recruiting
+    query into the same structured filters GET /api/v1/athletes already
+    supports client-side (position, class year, hard metrics, academics,
+    state, school, name). Never invents a criterion the query doesn't
+    state — the frontend always shows interpretation_note and the parsed
+    filters before applying them, and only ever filters real roster rows;
+    nothing here fabricates a result."""
+    prompt = f"""
+    Parse this college-football recruiting search query into structured filters.
+    Query: "{request.query}"
+
+    Only extract a filter the query actually states or clearly implies (e.g. "over 300 lbs"
+    implies weight_lbs_min=300; "class of 2027" implies grad_year_min=2027 and
+    grad_year_max=2027). Never invent a value the query does not support — use null for
+    anything not mentioned, rather than guessing a plausible one.
+
+    position must be one of QB, RB, WR, DB, LB, DE, DL, OL, TE, or null if no position or
+    position group is named. Map common synonyms: corner/safety/nickel -> DB; edge -> DE;
+    d-lineman/interior lineman -> DL; o-lineman/tackle/guard/center -> OL; receiver/slot -> WR;
+    running back/tailback -> RB; linebacker/backer -> LB; quarterback -> QB; tight end -> TE.
+
+    Return exactly these keys as JSON: position, grad_year_min, grad_year_max, height_in_min,
+    height_in_max, weight_lbs_min, weight_lbs_max, forty_s_max, shuttle_s_max, bench_lbs_min,
+    squat_lbs_min, gpa_min, sat_min, act_min, state (2-letter code or null), school_contains,
+    name_contains, and interpretation_note — one plain-English sentence describing exactly
+    what was searched for, so a coach can verify the parse before trusting the results.
+    """
+    try:
+        response = await asyncio.to_thread(
+            ai_client.models.generate_content,
+            model=settings.GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        raw = (response.text or "").strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            raise ValueError("query parse returned an invalid result")
+        return GenesisQueryResult(**parsed)
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail=f"Could not parse that query: {exc}")
+    except Exception as exc:
+        logger.exception("genesis query parse failed")
+        raise HTTPException(status_code=502, detail=f"Genesis query parsing failed: {exc}")
 
 
 def _is_youtube_url(url: str) -> bool:
