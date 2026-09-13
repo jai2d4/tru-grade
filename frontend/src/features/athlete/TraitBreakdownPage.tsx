@@ -1,7 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { rankLabel } from "@/lib/makeupGrade";
 import { Icon } from "@/components/IconSprite";
-import { ViewHeader } from "@/components/chrome";
+import { ExportReportButton, ViewHeader } from "@/components/chrome";
 import { SelectAthletePrompt } from "./SelectAthletePrompt";
 import { useEffectiveAthleteId } from "./useEffectiveAthleteId";
 import { useEvaluations } from "./useEvaluations";
@@ -67,6 +67,10 @@ function Loaded({ athleteId, evaluationId }: { athleteId: string; evaluationId: 
 
   return (
     <>
+      <div className="no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
+        <ExportReportButton />
+      </div>
+
       <p className="card-note">
         From the {selected.position_evaluated} Truth Report run on{" "}
         {new Date(selected.created_at).toLocaleDateString()}

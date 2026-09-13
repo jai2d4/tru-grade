@@ -337,6 +337,7 @@ describe("Coach 360 Report route", () => {
     expect(screen.getByText(/71/)).toBeInTheDocument();
     // The honestly-unavailable decision recorder stays disabled.
     expect(screen.getByRole("button", { name: /offer — full scholarship/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /export.*print report/i })).toBeInTheDocument();
   });
 });
 

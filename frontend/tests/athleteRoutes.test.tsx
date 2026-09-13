@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "@/App";
 
@@ -156,6 +157,25 @@ describe("AI Film Report route", () => {
     expect(screen.getByText("Win")).toBeInTheDocument();
     expect(screen.getByText(/matched jersey #12/i)).toBeInTheDocument();
   });
+
+  it("exports the report via the browser's real print dialog", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByPath({
+        "/api/v1/evaluations": [EVALUATION],
+        "/api/v1/athletes/a1": ATHLETE,
+      }),
+    );
+    const printSpy = vi.fn();
+    vi.stubGlobal("print", printSpy);
+
+    renderAt("/athlete/film-report?athleteId=a1");
+
+    const exportButton = await screen.findByRole("button", { name: /export.*print report/i });
+    await userEvent.click(exportButton);
+
+    expect(printSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("Trait Breakdown route", () => {
@@ -174,5 +194,6 @@ describe("Trait Breakdown route", () => {
     expect(screen.getByText("PASS")).toBeInTheDocument();
     const p4Row = screen.getByText("Power 4").closest(".row-item");
     expect(within(p4Row as HTMLElement).getByText("Win-")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /export.*print report/i })).toBeInTheDocument();
   });
 });

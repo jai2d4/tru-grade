@@ -40,6 +40,7 @@ export type IconName =
   | "card"
   | "link"
   | "users"
+  | "download"
   ;
 
 export function IconSprite() {
@@ -78,6 +79,7 @@ export function IconSprite() {
       <symbol id="ic-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></symbol>
       <symbol id="ic-link" viewBox="0 0 24 24"><path d="M9 15l6-6"/><path d="M8 12l-2.5 2.5a3.5 3.5 0 0 0 5 5L13 17"/><path d="M16 12l2.5-2.5a3.5 3.5 0 0 0-5-5L11 7"/></symbol>
       <symbol id="ic-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5S15.5 16.4 15.5 20"/><circle cx="17.5" cy="9" r="2.6"/><path d="M15.8 13.3c2.6.4 4.7 2.7 4.7 5.5"/></symbol>
+      <symbol id="ic-download" viewBox="0 0 24 24"><path d="M12 4v12M8 12l4 4 4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></symbol>
     </svg>
   );
 }
