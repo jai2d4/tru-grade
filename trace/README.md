@@ -120,13 +120,17 @@ apps/desktop → ui → { core, media, ai, analysis }
 
 ## Building
 
+**[docs/BUILDING.md](docs/BUILDING.md) is the complete reference** — every
+required and optional library, what each optional one costs when it is absent,
+and the Linux and Windows procedures end to end. What follows is the short form.
+
 ### Dependencies
 
 | Component | Version used in development | Notes |
 |---|---|---|
 | CMake | 3.28.3 | 3.21 is the declared minimum |
 | C++ compiler | GCC 13.3 (C++20) | MSVC 19.3x and Clang 16+ are supported by the code |
-| Qt | 6.4.2 (Core, Gui, Widgets, Concurrent) | Widgets only; no QML, no Qt Multimedia |
+| Qt | 6.4.2 (Core, Gui, Widgets, Concurrent, Multimedia) | Widgets only, no QML. Multimedia is required even headless — `trace_ui` links it for audio playback |
 | FFmpeg | 6.1.1 — libavformat 60.16.100, libavcodec 60.31.102, libavutil 58.29.100, libswscale 7.5.100, libswresample 4.12.100 | Decoding, probing and PNG encoding |
 | SQLite | 3.45.1 | System library |
 | GoogleTest | system package | Tests only |
@@ -137,10 +141,11 @@ apps/desktop → ui → { core, media, ai, analysis }
 
 ```bash
 # Debian/Ubuntu dependencies
-sudo apt-get install -y build-essential cmake ninja-build \
-    qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev \
+sudo apt-get install -y build-essential cmake ninja-build pkg-config \
+    qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev libgl1-mesa-dev \
     libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
-    libsqlite3-dev libgtest-dev libgmock-dev
+    libavdevice-dev \
+    libsqlite3-dev libsqlcipher-dev libssl-dev libgtest-dev libgmock-dev
 
 # Optional, and needed for real detection: the runtime and a model.
 ./trace/scripts/fetch_onnxruntime.sh          # add --gpu for the CUDA package
@@ -272,6 +277,7 @@ as importantly, what was not.
 | [docs/EVIDENCE_MODEL.md](docs/EVIDENCE_MODEL.md) | Case and evidence records, storage layout, integrity states |
 | [docs/PROVENANCE.md](docs/PROVENANCE.md) | The chain every derived result must satisfy |
 | [docs/DATABASE.md](docs/DATABASE.md) | Schema, keys, cascade policy, migrations |
+| [docs/BUILDING.md](docs/BUILDING.md) | Every build requirement in one place: toolchain, required and optional libraries, Linux, Windows, GPU |
 | [docs/BUILD_WINDOWS.md](docs/BUILD_WINDOWS.md) | Windows 11 build with vcpkg |
 | [docs/AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md) | How analysis plugs in, the provider interface, threading, what analysis may touch |
 | [docs/DETECTION_MODEL.md](docs/DETECTION_MODEL.md) | The model, preprocessing, output decode, class grouping, measured performance |
