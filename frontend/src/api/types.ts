@@ -501,3 +501,20 @@ export interface CurrentUser {
   athlete_id?: string | null;
   created_at: string;
 }
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+/** app/models/schemas.py ForgotPasswordResult. dev_reset_url is only ever
+ * populated in a local/demo/test deployment (see app/core/email.py) — a
+ * real production response never carries a live reset link. */
+export interface ForgotPasswordResult {
+  detail: string;
+  dev_reset_url?: string | null;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}

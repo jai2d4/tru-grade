@@ -4,7 +4,9 @@ import { CreateProfilePage } from "@/features/profile/CreateProfilePage";
 import { FilmAnalysisPage } from "@/features/film/FilmAnalysisPage";
 import { AccountSettingsPage } from "@/features/account/AccountSettingsPage";
 import { CreateAccountPage } from "@/features/account/CreateAccountPage";
+import { ForgotPasswordPage } from "@/features/account/ForgotPasswordPage";
 import { LoginPage } from "@/features/account/LoginPage";
+import { ResetPasswordPage } from "@/features/account/ResetPasswordPage";
 import { OfferProbabilityPage, RecruitingActivityPage } from "@/pages/athlete";
 import { AiFilmReportPage } from "@/features/athlete/AiFilmReportPage";
 import { AthleteDashboardPage } from "@/features/athlete/AthleteDashboardPage";
@@ -44,6 +46,8 @@ export function App() {
             <Route path="login" element={<LoginPage />} />
             <Route path="create-account" element={<CreateAccountPage />} />
             <Route path="account" element={<AccountSettingsPage />} />
+            <Route path="forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="reset-password" element={<ResetPasswordPage />} />
 
             <Route path="athlete">
               <Route path="dashboard" element={<AthleteDashboardPage />} />

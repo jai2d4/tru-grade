@@ -94,7 +94,9 @@ export function LoginPage() {
             Create Account
           </Link>
           <p className="card-note" style={{ textAlign: "center", marginTop: 12 }}>
-            Password reset isn't built yet.
+            <Link to="/forgot-password" style={{ color: "var(--blue-2)" }}>
+              Forgot password?
+            </Link>
           </p>
         </div>
       </div>

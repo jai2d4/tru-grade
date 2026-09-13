@@ -274,6 +274,20 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions (user_id);
 
+-- Password reset: a real, single-use, time-limited token. Only its hash is
+-- stored (same reasoning as a password — a leaked table must not itself be
+-- a usable credential). Existence + not-yet-expired is the whole validity
+-- check; app/routers/auth.py deletes a token outright once it's used or
+-- found expired, rather than tracking a separate "used" flag.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_hash      TEXT PRIMARY KEY,
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens (user_id);
+
 -- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,

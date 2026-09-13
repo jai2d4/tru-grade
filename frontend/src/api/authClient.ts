@@ -4,7 +4,7 @@
  * signup/login — nothing here stores a token client-side.
  */
 import { json, request } from "./client";
-import type { CurrentUser, LoginRequest, SignupRequest } from "./types";
+import type { CurrentUser, ForgotPasswordRequest, ForgotPasswordResult, LoginRequest, ResetPasswordRequest, SignupRequest } from "./types";
 
 export const auth = {
   signup(body: SignupRequest): Promise<CurrentUser> {
@@ -18,5 +18,11 @@ export const auth = {
   },
   me(): Promise<CurrentUser> {
     return request<CurrentUser>("/api/v1/auth/me");
+  },
+  forgotPassword(body: ForgotPasswordRequest): Promise<ForgotPasswordResult> {
+    return request<ForgotPasswordResult>("/api/v1/auth/forgot-password", json(body, "POST"));
+  },
+  resetPassword(body: ResetPasswordRequest): Promise<CurrentUser> {
+    return request<CurrentUser>("/api/v1/auth/reset-password", json(body, "POST"));
   },
 };

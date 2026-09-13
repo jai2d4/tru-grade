@@ -308,3 +308,19 @@ class CurrentUser(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., min_length=1, max_length=254)
+
+
+class ForgotPasswordResult(BaseModel):
+    detail: str
+    # Only ever populated in a local/demo/test APP_ENV — see app/core/email.py.
+    # A real deployment never puts a live reset link in an API response.
+    dev_reset_url: Optional[str] = None
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=1, max_length=256)
+    new_password: str = Field(..., min_length=8, max_length=128)

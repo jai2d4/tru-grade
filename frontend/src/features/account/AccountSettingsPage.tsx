@@ -127,7 +127,11 @@ export function AccountSettingsPage() {
                 Security
               </h3>
               <p className="card-note">
-                Password reset and two-factor authentication aren't built yet.
+                Forgot your password? Log out and use{" "}
+                <Link to="/forgot-password" style={{ color: "var(--blue-2)" }}>
+                  the reset link
+                </Link>{" "}
+                on the login page. Two-factor authentication isn't built yet.
               </p>
             </div>
           )}
