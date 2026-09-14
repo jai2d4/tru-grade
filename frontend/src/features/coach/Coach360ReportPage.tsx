@@ -10,7 +10,7 @@ import {
 import type { Athlete, CoachFitScores, CoachNote, Evaluation, FilmGrade, FilmLink } from "@/api/types";
 import { GRADE_DOWN_ROWS } from "@/features/athlete/TraitBreakdownPage";
 import { Icon } from "@/components/IconSprite";
-import { Stars, ViewHeader } from "@/components/chrome";
+import { ExportReportButton, Stars, ViewHeader } from "@/components/chrome";
 import { confidencePercent, orDash } from "@/lib/format";
 import { rankLabel } from "@/lib/makeupGrade";
 import { tierStars } from "@/lib/metricSieve";
@@ -131,6 +131,10 @@ function Loaded({ athleteId }: { athleteId: string }) {
 
   return (
     <>
+      <div className="no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
+        <ExportReportButton />
+      </div>
+
       <div className="card">
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
           <div className="avatar-ring" style={{ width: 56, height: 56 }}>
@@ -367,7 +371,7 @@ function Loaded({ athleteId }: { athleteId: string }) {
         )}
       </div>
 
-      <div className="card">
+      <div className="card no-print">
         <h3>
           <Icon name="target" />
           Coach Decision

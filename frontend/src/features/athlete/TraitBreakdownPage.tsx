@@ -1,8 +1,9 @@
 import { useSearchParams } from "react-router-dom";
 import { rankLabel } from "@/lib/makeupGrade";
 import { Icon } from "@/components/IconSprite";
-import { ViewHeader } from "@/components/chrome";
+import { ExportReportButton, ViewHeader } from "@/components/chrome";
 import { SelectAthletePrompt } from "./SelectAthletePrompt";
+import { useEffectiveAthleteId } from "./useEffectiveAthleteId";
 import { useEvaluations } from "./useEvaluations";
 
 export const GRADE_DOWN_ROWS: { key: "overall" | "p4" | "group_of_5" | "fcs" | "d2_d3_naia_juco"; label: string }[] = [
@@ -16,7 +17,7 @@ export const GRADE_DOWN_ROWS: { key: "overall" | "p4" | "group_of_5" | "fcs" | "
 /** Trait Breakdown — the hard-metric sieve and Profile & Makeup grade-down from a real Truth Report. */
 export function TraitBreakdownPage() {
   const [searchParams] = useSearchParams();
-  const athleteId = searchParams.get("athleteId");
+  const athleteId = useEffectiveAthleteId();
   const evaluationId = searchParams.get("evaluationId");
 
   return (
@@ -66,6 +67,10 @@ function Loaded({ athleteId, evaluationId }: { athleteId: string; evaluationId: 
 
   return (
     <>
+      <div className="no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
+        <ExportReportButton />
+      </div>
+
       <p className="card-note">
         From the {selected.position_evaluated} Truth Report run on{" "}
         {new Date(selected.created_at).toLocaleDateString()}

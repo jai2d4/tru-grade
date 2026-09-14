@@ -2,16 +2,23 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { CreateProfilePage } from "@/features/profile/CreateProfilePage";
 import { FilmAnalysisPage } from "@/features/film/FilmAnalysisPage";
-import { AccountSettingsPage, CreateAccountPage, LoginPage } from "@/pages/account";
-import { OfferProbabilityPage, PublicRatingPage, RecruitingActivityPage } from "@/pages/athlete";
+import { AccountSettingsPage } from "@/features/account/AccountSettingsPage";
+import { CreateAccountPage } from "@/features/account/CreateAccountPage";
+import { ForgotPasswordPage } from "@/features/account/ForgotPasswordPage";
+import { LoginPage } from "@/features/account/LoginPage";
+import { ResetPasswordPage } from "@/features/account/ResetPasswordPage";
+import { OfferProbabilityPage, RecruitingActivityPage } from "@/pages/athlete";
 import { AiFilmReportPage } from "@/features/athlete/AiFilmReportPage";
 import { AthleteDashboardPage } from "@/features/athlete/AthleteDashboardPage";
+import { PublicRatingPage } from "@/features/athlete/PublicRatingPage";
 import { TraitBreakdownPage } from "@/features/athlete/TraitBreakdownPage";
 import { Coach360ReportPage } from "@/features/coach/Coach360ReportPage";
 import { CoachDashboardPage } from "@/features/coach/CoachDashboardPage";
 import { GenesisSearchPage } from "@/features/coach/GenesisSearchPage";
 import { PlayerProfilePage } from "@/features/coach/PlayerProfilePage";
 import { RecruitmentBoardPage } from "@/features/coach/RecruitmentBoardPage";
+import { PublicAthletePage } from "@/features/public/PublicAthletePage";
+import { AuthProvider } from "@/state/AuthContext";
 import { ProfileProvider } from "@/state/ProfileContext";
 
 /**
@@ -24,37 +31,46 @@ import { ProfileProvider } from "@/state/ProfileContext";
  */
 export function App() {
   return (
-    <ProfileProvider>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<CreateProfilePage />} />
-          <Route path="film-analysis" element={<FilmAnalysisPage />} />
+    <AuthProvider>
+      <ProfileProvider>
+        <Routes>
+          {/* Anonymous share-link landing page — no account, no sidebar, so it
+              sits outside AppShell entirely rather than under any coach/athlete
+              path. See app/routers/public.py for what it can and can't show. */}
+          <Route path="public/:token" element={<PublicAthletePage />} />
 
-          <Route path="login" element={<LoginPage />} />
-          <Route path="create-account" element={<CreateAccountPage />} />
-          <Route path="account" element={<AccountSettingsPage />} />
+          <Route element={<AppShell />}>
+            <Route index element={<CreateProfilePage />} />
+            <Route path="film-analysis" element={<FilmAnalysisPage />} />
 
-          <Route path="athlete">
-            <Route path="dashboard" element={<AthleteDashboardPage />} />
-            <Route path="film-report" element={<AiFilmReportPage />} />
-            <Route path="traits" element={<TraitBreakdownPage />} />
-            <Route path="recruiting" element={<RecruitingActivityPage />} />
-            <Route path="offers" element={<OfferProbabilityPage />} />
-            <Route path="public-rating" element={<PublicRatingPage />} />
+            <Route path="login" element={<LoginPage />} />
+            <Route path="create-account" element={<CreateAccountPage />} />
+            <Route path="account" element={<AccountSettingsPage />} />
+            <Route path="forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="reset-password" element={<ResetPasswordPage />} />
+
+            <Route path="athlete">
+              <Route path="dashboard" element={<AthleteDashboardPage />} />
+              <Route path="film-report" element={<AiFilmReportPage />} />
+              <Route path="traits" element={<TraitBreakdownPage />} />
+              <Route path="recruiting" element={<RecruitingActivityPage />} />
+              <Route path="offers" element={<OfferProbabilityPage />} />
+              <Route path="public-rating" element={<PublicRatingPage />} />
+            </Route>
+
+            <Route path="coach">
+              <Route path="dashboard" element={<CoachDashboardPage />} />
+              <Route path="board" element={<RecruitmentBoardPage />} />
+              <Route path="player-profile" element={<PlayerProfilePage />} />
+              <Route path="360-report" element={<Coach360ReportPage />} />
+              <Route path="genesis" element={<GenesisSearchPage />} />
+            </Route>
+
+            {/* An unknown path is not an error state to invent a screen for. */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
-
-          <Route path="coach">
-            <Route path="dashboard" element={<CoachDashboardPage />} />
-            <Route path="board" element={<RecruitmentBoardPage />} />
-            <Route path="player-profile" element={<PlayerProfilePage />} />
-            <Route path="360-report" element={<Coach360ReportPage />} />
-            <Route path="genesis" element={<GenesisSearchPage />} />
-          </Route>
-
-          {/* An unknown path is not an error state to invent a screen for. */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </ProfileProvider>
+        </Routes>
+      </ProfileProvider>
+    </AuthProvider>
   );
 }

@@ -108,8 +108,18 @@ tru-scouting-engine/
 ├── render.yaml                # Render Blueprint — one-click web service + free Postgres
 ├── db/
 │   └── init_schema.sql       # Module 5 — PostgreSQL schema + seeded position matrix (idempotent)
+├── native/                   # optional C11 + C++20 tracking core (see docs/NATIVE_CORE.md)
+│   ├── include/
+│   │   └── trugrade_core.h   # the public C ABI — the only surface Python binds to
+│   ├── src/
+│   │   ├── tg_abi.c          # C: argument validation ahead of any C++ call
+│   │   ├── capi.cpp          # C++: exception firewall over the ABI
+│   │   ├── tracking.cpp      # C++: the two-stage detection/track associator
+│   │   └── kinematics.cpp    # C++: movement summary
+│   └── tests/                # native self-tests, driven through the C ABI
 ├── scripts/
-│   └── init_db.py            # applies init_schema.sql on container boot — safe to re-run
+│   ├── init_db.py            # applies init_schema.sql on container boot — safe to re-run
+│   └── build_native.sh       # builds native/ — optional, the backend runs without it
 ├── tests/                    # pytest suite (mocked Gemini + DB; no live services needed)
 └── app/
     ├── main.py               # Modules 1, 4 & 6 — Gemini ingestion + Truth Report + Makeup Grade routes
@@ -134,8 +144,19 @@ tru-scouting-engine/
 cp .env.example .env          # add your GEMINI_API_KEY + DB password
 pip install -r requirements.txt
 psql -U tru_admin -d tru_scouting -f db/init_schema.sql
+sh scripts/build_native.sh    # optional — C/C++ tracking core, see below
 uvicorn app.main:app --reload
 ```
+
+### The native core (optional)
+
+Player tracking is implemented twice: in C++ behind a C ABI (`native/`) and in
+Python. `scripts/build_native.sh` compiles the C++ one; without it the Python
+one runs instead and produces identical results, about 1.7–3.9x more slowly
+depending on how many players are on screen. Neither the tests nor the app
+require the build. `GET /api/health/status` reports which path is live under
+`native_core`, and `docs/NATIVE_CORE.md` covers the design and how the two are
+held to exact parity.
 
 The app still runs with a cold or unreachable database — `metric-sieve`, `makeup-grade`, and `analyze-film` never touch Postgres. `truth-report` best-effort saves its result and degrades to `"persisted": false` rather than failing if the DB is down. The athlete/evaluation CRUD routes do require the database and return `503` if it's unreachable.
 
@@ -172,6 +193,15 @@ pip install -r requirements-dev.txt
 pytest
 ```
 CI (`.github/workflows/ci.yml`) runs the same suite on every push/PR.
+
+If the native core is built, `pytest` also runs the parity suite that holds it
+and the Python fallback to identical output. To exercise the fallback
+explicitly:
+
+```bash
+sh scripts/build_native.sh          # C++ self-tests, via ctest
+TRUGRADE_DISABLE_NATIVE=1 pytest    # the pure-Python path
+```
 
 ## Endpoints
 - `GET  /api/v1/health` — always open, no auth

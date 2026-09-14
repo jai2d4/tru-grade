@@ -43,6 +43,12 @@ jobs:
           PGPASSWORD: test
         run: psql -h localhost -U tru_admin -d tru_scouting_test -f db/init_schema.sql
 
+      # ubuntu-latest ships gcc and cmake, so this is a real build here even
+      # though the backend treats it as optional. Without it the native/Python
+      # parity suite would skip and the C++ would go untested on every PR.
+      - name: Build the native core
+        run: sh scripts/build_native.sh
+
       - name: Run tests
         env:
           GEMINI_API_KEY: test-key-not-real
@@ -52,6 +58,20 @@ jobs:
           POSTGRES_USER: tru_admin
           POSTGRES_PASSWORD: test
         run: pytest tests backend/tests -v
+
+      # Production can legitimately run without the library, so the fallback is
+      # a supported configuration and gets its own run rather than being assumed
+      # to still work.
+      - name: Run tests without the native core
+        env:
+          GEMINI_API_KEY: test-key-not-real
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: tru_scouting_test
+          POSTGRES_USER: tru_admin
+          POSTGRES_PASSWORD: test
+          TRUGRADE_DISABLE_NATIVE: "1"
+        run: pytest tests backend/tests -q
 
       # No lockfile is committed yet — run `npm install` once locally and commit
       # frontend/package-lock.json, then this can become `npm ci`.

@@ -243,6 +243,12 @@ td.val.laser{color:var(--laser)}
 .nav-item.active .ic{color:var(--blue-2)}
 .nav-badge{margin-left:auto;font-family:'IBM Plex Mono';font-size:9px;color:var(--dim);
   border:1px solid var(--line);border-radius:100px;padding:1px 6px;letter-spacing:.04em}
+
+/* Phase 21 — who's signed in, visible from every screen via the sidebar. */
+.sidebar-account{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.sidebar-account-name{display:flex;align-items:center;gap:8px;padding:0 10px 8px;
+  font-size:12px;color:var(--dim)}
+.sidebar-account-name .ic{color:var(--dim)}
 .main{flex:1;min-width:0}
 .view{display:block}
 .view[hidden]{display:none}
@@ -383,3 +389,30 @@ td.val.laser{color:var(--laser)}
    the panel colours, so set them explicitly for the dark shell. */
 .field select{appearance:none;cursor:pointer;padding-right:14px}
 .field select option{background:var(--panel2);color:var(--chalk)}
+
+/* Public Rating — the anonymous share-link landing page, rendered outside
+   AppShell (no sidebar, no coach nav) since its viewer has no account. */
+.public-rating-page{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  padding:32px 16px}
+.public-rating-card{width:100%;max-width:480px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:28px}
+
+/* Report export — real output is the browser's own "Print to PDF", not a
+   generated file we'd have to keep in sync with the live page by hand.
+   Redefining the theme tokens under @media print reuses every existing
+   component style (.card, .row-item, .rating-card, …) on a light,
+   printable palette instead of restyling each one by hand. */
+.export-report-btn{display:inline-flex;align-items:center;gap:8px}
+@media print{
+  :root{
+    --slate:#fff; --panel:#fff; --panel2:#f6f7f9; --line:#d7d9e0; --line-strong:#b7bbc6;
+    --chalk:#15171c; --dim:#4b4f59; --blue-2:#1d5fd6;
+  }
+  body{background:#fff!important}
+  .sidebar,.sidebar-toggle,.skip-link,.sidebar-scrim,.no-print{display:none!important}
+  .shell{display:block!important}
+  .main{padding:0!important}
+  .card::before,.card::after{display:none!important}
+  .card,.rating-card{box-shadow:none!important;break-inside:avoid}
+  a[href]{color:var(--blue-2)!important}
+}

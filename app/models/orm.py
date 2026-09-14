@@ -206,3 +206,60 @@ class FilmGrade(Base):
     events: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     demo_traits: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AthleteShareLink(Base):
+    """An unauthenticated, read-only share link for one athlete — see the
+    schema comment in db/init_schema.sql for exactly what the public
+    endpoint (app/routers/public.py) does and doesn't expose."""
+    __tablename__ = "athlete_share_links"
+
+    athlete_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("athletes.id", ondelete="CASCADE"), primary_key=True,
+    )
+    token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class User(Base):
+    """Phase 21 — a real account, layered on top of the shared API-key gate.
+    A coach's athlete_id stays NULL; an athlete's is set exactly once (see
+    app/routers/auth.py for how signup resolves that link). See the schema
+    comment in db/init_schema.sql for the full design rationale."""
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    full_name: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    athlete_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("athletes.id", ondelete="SET NULL"), unique=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (CheckConstraint("role IN ('coach','athlete')", name="users_role_check"),)
+
+
+class UserSession(Base):
+    """A logged-in session — the opaque token is what a request actually
+    carries (an httpOnly cookie), never the password. Deleting the row logs
+    that session out; it doesn't touch the account."""
+    __tablename__ = "user_sessions"
+
+    token: Mapped[str] = mapped_column(Text, primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PasswordResetToken(Base):
+    """A real, single-use, time-limited password reset token — only its
+    hash is stored, same reasoning as a password. See the schema comment
+    in db/init_schema.sql and app/routers/auth.py for the full flow."""
+    __tablename__ = "password_reset_tokens"
+
+    token_hash: Mapped[str] = mapped_column(Text, primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

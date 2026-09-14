@@ -12,6 +12,8 @@ import type {
   CalibrationResult,
   FilmJob,
   FilmJobCreated,
+  GenesisQueryRequest,
+  GenesisQueryResult,
   GradesResponse,
   IdentifyRequest,
   IdentityResult,
@@ -23,6 +25,7 @@ import type {
   TruthReportJob,
   TruthReportRequest,
   UploadedVideo,
+  YouTubeUploadRequest,
 } from "./types";
 
 export class ApiError extends Error {
@@ -52,7 +55,10 @@ const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (API_KEY) headers.set("X-API-Key", API_KEY);
-  const response = await fetch(apiBase() + path, { ...init, headers });
+  // Phase 21's session cookie needs this on every call — harmless for calls
+  // that don't touch it, and same-origin (the deployed app) sends cookies by
+  // default anyway; this matters for the cross-origin Vite dev server case.
+  const response = await fetch(apiBase() + path, { ...init, headers, credentials: "include" });
   const data = await response.json().catch(() => ({}) as unknown);
   if (!response.ok) {
     const detail = (data as { detail?: string }).detail;
@@ -76,6 +82,16 @@ export const videos = {
     const form = new FormData();
     form.append("file", file);
     return request<UploadedVideo>("/api/videos/upload", { method: "POST", body: form });
+  },
+  /** Server-side YouTube fetch — the phone-upload workaround (see
+   * backend/video/youtube.py); same response shape as a direct upload. */
+  uploadFromYoutube(body: YouTubeUploadRequest): Promise<UploadedVideo> {
+    return request<UploadedVideo>("/api/videos/upload-from-youtube", json(body));
+  },
+  /** Direct URL to the stored file — used as the <video> source right after
+   * a YouTube-fetched upload, since there's no local File/object URL. */
+  contentUrl(videoId: string): string {
+    return `${apiBase()}/api/videos/${videoId}/content`;
   },
   tracks(videoId: string): Promise<TracksResponse> {
     return request<TracksResponse>(`/api/videos/${videoId}/tracks`);
@@ -130,6 +146,11 @@ const FILM_JOBS = "/api/v1/scout/analyze-film/jobs";
 export const scout = {
   playerLookup(body: PlayerLookupRequest): Promise<PlayerLookupResponse> {
     return request<PlayerLookupResponse>("/api/v1/scout/player-lookup", json(body));
+  },
+  /** Genesis Search's real natural-language layer — parses free text into
+   * structured roster filters. See types.ts's GenesisQueryResult comment. */
+  genesisQuery(body: GenesisQueryRequest): Promise<GenesisQueryResult> {
+    return request<GenesisQueryResult>("/api/v1/scout/genesis-query", json(body));
   },
   /**
    * The film job accepts multipart with exactly one of `file` or `youtube_url`,

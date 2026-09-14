@@ -53,6 +53,65 @@ def test_liveness_does_not_run_dependency_probes():
     assert response.json()["checks"] is None
 
 
+def test_status_reports_diagnostics_without_leaking_secrets(monkeypatch):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "real-gemini-key")
+    monkeypatch.setattr(settings, "API_KEY", "real-api-key")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "abc1234")
+    monkeypatch.setenv("RENDER_GIT_BRANCH", "main")
+
+    async def available():
+        return None
+
+    app.dependency_overrides[get_readiness_probes] = lambda: {"database": available, "storage": available}
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/health/status")
+    finally:
+        app.dependency_overrides.pop(get_readiness_probes, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ready"
+    assert payload["environment"] == settings.APP_ENV
+    assert payload["git_commit"] == "abc1234"
+    assert payload["git_branch"] == "main"
+    assert payload["uptime_seconds"] >= 0
+    assert payload["gemini_configured"] is True
+    assert payload["api_key_configured"] is True
+    # Never the secret values themselves, only that they're set.
+    assert "real-gemini-key" not in response.text
+    assert "real-api-key" not in response.text
+
+
+def test_status_reports_503_and_none_git_fields_outside_render(monkeypatch):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "API_KEY", None)
+    monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
+    monkeypatch.delenv("RENDER_GIT_BRANCH", raising=False)
+
+    async def unavailable():
+        raise ConnectionError("boom")
+
+    app.dependency_overrides[get_readiness_probes] = lambda: {"database": unavailable, "storage": unavailable}
+    try:
+        with TestClient(app) as client:
+            response = client.get("/api/health/status")
+    finally:
+        app.dependency_overrides.pop(get_readiness_probes, None)
+
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "not_ready"
+    assert payload["git_commit"] is None
+    assert payload["git_branch"] is None
+    assert payload["api_key_configured"] is False
+
+
 def test_readiness_reports_required_dependency_failure():
     async def available():
         return None

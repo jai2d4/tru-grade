@@ -28,8 +28,7 @@ class VideoStore:
         if suffix not in ALLOWED_EXTENSIONS:
             raise HTTPException(400, "Video must be MP4, MOV, AVI, or MKV.")
         video_id = str(uuid4())
-        safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(original).stem).strip("._") or "film"
-        target = self.video_dir / f"{video_id}-{safe_stem}{suffix}"
+        target = self._target_path(video_id, original, suffix)
         size = 0
         try:
             with target.open("wb") as output:
@@ -41,6 +40,31 @@ class VideoStore:
         except Exception:
             target.unlink(missing_ok=True)
             raise
+        return self._record(video_id, original, target, size)
+
+    def save_from_path(self, source: Path, original_filename: str) -> dict:
+        """Adopts an already-downloaded file (see backend/video/youtube.py)
+        into the store — same validation, metadata, and directory layout as
+        a direct upload, just skipping the chunked-read step since the
+        bytes are already on disk. Moves rather than copies; the caller's
+        temp file no longer exists afterward."""
+        suffix = Path(original_filename).suffix.lower()
+        if suffix not in ALLOWED_EXTENSIONS:
+            raise HTTPException(400, "Video must be MP4, MOV, AVI, or MKV.")
+        video_id = str(uuid4())
+        target = self._target_path(video_id, original_filename, suffix)
+        size = source.stat().st_size
+        if size > self.max_bytes:
+            source.unlink(missing_ok=True)
+            raise HTTPException(413, "File exceeds upload limit.")
+        source.replace(target)
+        return self._record(video_id, original_filename, target, size)
+
+    def _target_path(self, video_id: str, original: str, suffix: str) -> Path:
+        safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(original).stem).strip("._") or "film"
+        return self.video_dir / f"{video_id}-{safe_stem}{suffix}"
+
+    def _record(self, video_id: str, original: str, target: Path, size: int) -> dict:
         metadata = {
             "video_id": video_id, "filename": original, "status": "uploaded",
             "size_bytes": size, "file_path": str(target),

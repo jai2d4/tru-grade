@@ -4,7 +4,7 @@
 # them together automatically. You only have to type in your Gemini key.
 databases:
   - name: tru-scouting-db
-    plan: free
+    plan: 0.1c-256mb   # matches the actual live plan — "free" Postgres isn't offered for new/synced databases anymore
     databaseName: tru_scouting
     user: tru_admin
 
@@ -12,7 +12,7 @@ services:
   - type: web
     name: tru-scouting-engine
     runtime: docker
-    plan: free
+    plan: 0.5c-512mb   # matches the actual live plan
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health/ready
     envVars:
@@ -24,6 +24,16 @@ services:
         sync: false           # set to the SAME value as API_KEY above — baked into the frontend bundle at build time so the deployed site can call its own API. Requires a manual re-deploy after setting (build-time only, not picked up by a running instance)
       - key: CORS_ALLOW_ORIGINS
         value: ""              # same-origin only; set an explicit comma-separated allowlist if a separate frontend origin ever calls this API directly
+      - key: SMTP_HOST
+        sync: false           # optional — password reset stays honestly "not available yet" until this is set; any SMTP relay works (SendGrid, Postmark, SES, your domain host). See app/core/email.py and docs/BACKUP_RESTORE.md's neighbor, the password-reset flow in app/routers/auth.py.
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false           # the "From" address on reset emails — defaults to SMTP_USER if unset
       - key: POSTGRES_HOST
         fromDatabase:
           name: tru-scouting-db

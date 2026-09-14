@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "@/App";
 
@@ -65,14 +66,17 @@ const EVALUATION = {
 };
 
 describe("Athlete Dashboard route", () => {
-  it("shows the honest empty state and touches no network with no athlete selected", () => {
+  it("shows the honest empty state and touches no network with no athlete selected", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
     renderAt("/athlete/dashboard");
 
-    expect(screen.getByRole("note")).toHaveTextContent(/no athlete selected/i);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // AuthProvider's own /api/v1/auth/me check (Phase 21) settles async —
+    // wait for it so the assertion below isn't racing a pending state update.
+    expect(await screen.findByRole("note")).toHaveTextContent(/no athlete selected/i);
+    const urls = fetchSpy.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => url.endsWith("/api/v1/auth/me"))).toBe(true);
   });
 
   it("renders real Truth Report counts for the selected athlete", async () => {
@@ -153,6 +157,25 @@ describe("AI Film Report route", () => {
     expect(screen.getByText("Win")).toBeInTheDocument();
     expect(screen.getByText(/matched jersey #12/i)).toBeInTheDocument();
   });
+
+  it("exports the report via the browser's real print dialog", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchByPath({
+        "/api/v1/evaluations": [EVALUATION],
+        "/api/v1/athletes/a1": ATHLETE,
+      }),
+    );
+    const printSpy = vi.fn();
+    vi.stubGlobal("print", printSpy);
+
+    renderAt("/athlete/film-report?athleteId=a1");
+
+    const exportButton = await screen.findByRole("button", { name: /export.*print report/i });
+    await userEvent.click(exportButton);
+
+    expect(printSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("Trait Breakdown route", () => {
@@ -171,5 +194,6 @@ describe("Trait Breakdown route", () => {
     expect(screen.getByText("PASS")).toBeInTheDocument();
     const p4Row = screen.getByText("Power 4").closest(".row-item");
     expect(within(p4Row as HTMLElement).getByText("Win-")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /export.*print report/i })).toBeInTheDocument();
   });
 });

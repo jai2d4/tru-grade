@@ -5,12 +5,12 @@ import { UnavailableView } from "@/components/UnavailableView";
 /**
  * Athlete-facing screens still without a real backend behind them.
  *
- * Athlete Dashboard, AI Film Report, and Trait Breakdown moved to
- * @/features/athlete — they read the real Module 5 Truth Report history.
- * The three screens left here have no data source at all: there is no
- * coach-activity feed, no offer model (the roadmap holds that one back
- * deliberately, see docs/FULL_APP_ROADMAP.md), and no public profile or
- * share-link system.
+ * Athlete Dashboard, AI Film Report, Trait Breakdown, and Public Rating
+ * moved to @/features/athlete — they read real data (Module 5 Truth Report
+ * history, and now the athlete_share_links table). The two screens left
+ * here have no data source at all: there is no coach-activity feed, and no
+ * offer model (the roadmap holds that one back deliberately, see
+ * docs/FULL_APP_ROADMAP.md).
  */
 
 export function RecruitingActivityPage() {
@@ -86,62 +86,6 @@ export function OfferProbabilityPage() {
           TruStar Offer Signal uses AI to separate real recruiting interest from noise — populated
           once an athlete profile has recruiting activity.
         </p>
-      </div>
-    </UnavailableView>
-  );
-}
-
-export function PublicRatingPage() {
-  return (
-    <UnavailableView
-      title={
-        <>
-          PUBLIC ATHLETE <span className="accent">RATING</span>
-        </>
-      }
-      subtitle="Shareable. Verified. Recruit-ready."
-      note="Public profiles are not published, so there is no shareable rating."
-    >
-      <div className="cards-2">
-        <div className="card">
-          <div className="avatar-ring" style={{ width: 64, height: 64 }}>
-            <svg className="ic" style={{ width: 28, height: 28 }} aria-hidden="true">
-              <use href="#ic-user" />
-            </svg>
-          </div>
-          <h3 style={{ marginTop: 12 }}>Athlete Profile</h3>
-          <Stars count={0} label="Not yet rated" />
-          <button className="btn-solid" type="button" disabled style={{ opacity: 0.5, marginTop: 10 }}>
-            Share Athlete Profile
-          </button>
-        </div>
-        <div className="card">
-          <h3>
-            <Icon name="shield" />
-            AI Truth Report Preview
-          </h3>
-          <div className="row-list">
-            <div className="row-item">
-              <div className="rl">
-                <Icon name="shield" />
-                Evaluation Integrity
-              </div>
-            </div>
-            <div className="row-item">
-              <div className="rl">
-                <Icon name="chart" />
-                Performance Insights
-              </div>
-            </div>
-            <div className="row-item">
-              <div className="rl">
-                <Icon name="users" />
-                Recruiting Transparency
-              </div>
-            </div>
-          </div>
-          <p className="card-note">Full report available to coaches on request.</p>
-        </div>
       </div>
     </UnavailableView>
   );

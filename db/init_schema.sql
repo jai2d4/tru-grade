@@ -221,6 +221,74 @@ CREATE INDEX IF NOT EXISTS idx_film_grades_video ON film_grades (video_id);
 CREATE INDEX IF NOT EXISTS idx_film_grades_player ON film_grades (player_id);
 
 -- ------------------------------------------------------------
+-- Public Rating: an unauthenticated, read-only share link for one athlete.
+-- One row per athlete — generating a new link overwrites the token, which
+-- invalidates the old one outright (no separate revoke state needed for
+-- "I want a fresh link"; DELETE the row for "I want no link at all").
+-- What the public endpoint (app/routers/public.py) hands back is
+-- deliberately narrow: name, position, school, grad year, and the real
+-- projected tier — no hard metrics, no coach notes, no fit scores, no
+-- film. The token itself is the only credential; treat it like any other
+-- unguessable share-link (a Docs or Dropbox link), not a password.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS athlete_share_links (
+    athlete_id      UUID PRIMARY KEY REFERENCES athletes(id) ON DELETE CASCADE,
+    token           TEXT NOT NULL UNIQUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_athlete_share_links_token ON athlete_share_links (token);
+
+-- ------------------------------------------------------------
+-- Phase 21: real accounts, layered on top of the existing shared API-key
+-- gate (app/core/auth.py) rather than replacing it — the key stays the
+-- baseline for "is this even a request from our own frontend", and a user
+-- row adds "which coach or athlete is making it".
+--
+-- A user is either a coach (athlete_id stays NULL — a coach isn't tied to
+-- one roster row) or an athlete (athlete_id set exactly once via UNIQUE,
+-- resolved at signup by app/routers/auth.py: linked to a matching,
+-- not-yet-claimed athletes row when exactly one match exists, otherwise a
+-- new roster row is created — never guessed when the match is ambiguous).
+-- Sessions are a separate table so a login can be revoked (logout) without
+-- touching the account, and so a session row, not the password, is what a
+-- request actually carries (as an opaque token in an httpOnly cookie).
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email           TEXT NOT NULL UNIQUE,
+    password_hash   TEXT NOT NULL,
+    full_name       TEXT NOT NULL,
+    role            TEXT NOT NULL,
+    athlete_id      UUID UNIQUE REFERENCES athletes(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT users_role_check CHECK (role IN ('coach', 'athlete'))
+);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+    token           TEXT PRIMARY KEY,
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions (user_id);
+
+-- Password reset: a real, single-use, time-limited token. Only its hash is
+-- stored (same reasoning as a password — a leaked table must not itself be
+-- a usable credential). Existence + not-yet-expired is the whole validity
+-- check; app/routers/auth.py deletes a token outright once it's used or
+-- found expired, rather than tracking a separate "used" flag.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_hash      TEXT PRIMARY KEY,
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens (user_id);
+
+-- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,
 -- best to worst: GAME_CHANGER, ALL_CONF, WIN_PLUS, WIN, WIN_MINUS, NGE.

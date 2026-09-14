@@ -27,32 +27,49 @@ from app.core.auth import require_api_key
 from app.core.config import get_settings
 from app.core.cors import resolve_cors_allow_origins
 from app.core.db import best_effort_session
+from app.core.logging_config import RequestIDMiddleware, configure_logging
 from app.models import orm
 from app.models.schemas import AthleteCreate, GradeDown, MakeupGrades, Position, SieveResult
-from app.routers import athletes, board, coach, evaluations
+from app.routers import athletes, auth, board, coach, evaluations, public
 from app.services.film_grading import build_scouting_prompt
 from app.services.makeup_grade import average_makeup_grade, grade_down
 from app.services.metric_sieve import run_sieve
 
-logger = logging.getLogger("tru.main")
 settings = get_settings()
+configure_logging(settings.LOG_LEVEL)
+logger = logging.getLogger("tru.main")
 app = FastAPI(title="TRU_Scouting_Engine_Backend", version="1.0.0")
 app.include_router(athletes.router)
 app.include_router(evaluations.router)
 app.include_router(board.router)
 app.include_router(coach.router)
+app.include_router(auth.router)
+# No require_api_key here — this is the anonymous public share-link surface;
+# see app/routers/public.py for exactly what it does and doesn't expose.
+app.include_router(public.router)
 
 # The deployed panel is same-origin. Cross-origin access is explicit in
 # production and remains open only in the named local/demo environments.
+# allow_credentials is required for the Phase 21 session cookie to travel on
+# a cross-origin request (e.g. the Vite dev server on :5173 calling :8000);
+# Starlette automatically reflects the specific request Origin instead of a
+# literal "*" whenever allow_credentials is set, so this stays compatible
+# with the wildcard local-dev default from resolve_cors_allow_origins.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=resolve_cors_allow_origins(
         settings.APP_ENV,
         settings.CORS_ALLOW_ORIGINS,
     ),
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Structured, per-request-correlated access logging — see
+# app/core/logging_config.py for the full rationale. Every response also
+# carries the same X-Request-ID back to the caller.
+app.add_middleware(RequestIDMiddleware)
 
 # Native Google GenAI client — reads GEMINI_API_KEY from environment
 ai_client = genai.Client()
@@ -67,6 +84,37 @@ FILM_JOBS: dict[str, dict] = {}
 class PlayerLookupRequest(BaseModel):
     player_name: str = Field(..., min_length=2, max_length=128)
     school: Optional[str] = Field(None, max_length=128)
+
+
+class GenesisQueryRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=500)
+
+
+class GenesisQueryResult(BaseModel):
+    """Genesis Search's real natural-language layer: a plain-English query
+    parsed into the same structured fields the roster already supports.
+    Loosely typed on purpose — a malformed or unexpected value from the
+    model degrades to "that one filter is ignored", never a hard failure
+    of the whole search. `interpretation_note` is always shown to the
+    coach alongside the parsed filters, so this is never a black box."""
+    position: Optional[str] = None
+    grad_year_min: Optional[int] = None
+    grad_year_max: Optional[int] = None
+    height_in_min: Optional[float] = None
+    height_in_max: Optional[float] = None
+    weight_lbs_min: Optional[float] = None
+    weight_lbs_max: Optional[float] = None
+    forty_s_max: Optional[float] = None
+    shuttle_s_max: Optional[float] = None
+    bench_lbs_min: Optional[float] = None
+    squat_lbs_min: Optional[float] = None
+    gpa_min: Optional[float] = None
+    sat_min: Optional[int] = None
+    act_min: Optional[int] = None
+    state: Optional[str] = None
+    school_contains: Optional[str] = None
+    name_contains: Optional[str] = None
+    interpretation_note: str = "Could not summarize this search."
 
 
 def _grounding_sources(response) -> list[dict]:
@@ -124,6 +172,56 @@ async def player_lookup(request: PlayerLookupRequest):
     except Exception as exc:
         logger.exception("player lookup failed")
         raise HTTPException(status_code=502, detail=f"Player lookup failed: {exc}")
+
+
+@app.post("/api/v1/scout/genesis-query", response_model=GenesisQueryResult, dependencies=[Depends(require_api_key)])
+async def genesis_query(request: GenesisQueryRequest):
+    """Genesis Search's natural-language layer: parses a free-text recruiting
+    query into the same structured filters GET /api/v1/athletes already
+    supports client-side (position, class year, hard metrics, academics,
+    state, school, name). Never invents a criterion the query doesn't
+    state — the frontend always shows interpretation_note and the parsed
+    filters before applying them, and only ever filters real roster rows;
+    nothing here fabricates a result."""
+    prompt = f"""
+    Parse this college-football recruiting search query into structured filters.
+    Query: "{request.query}"
+
+    Only extract a filter the query actually states or clearly implies (e.g. "over 300 lbs"
+    implies weight_lbs_min=300; "class of 2027" implies grad_year_min=2027 and
+    grad_year_max=2027). Never invent a value the query does not support — use null for
+    anything not mentioned, rather than guessing a plausible one.
+
+    position must be one of QB, RB, WR, DB, LB, DE, DL, OL, TE, or null if no position or
+    position group is named. Map common synonyms: corner/safety/nickel -> DB; edge -> DE;
+    d-lineman/interior lineman -> DL; o-lineman/tackle/guard/center -> OL; receiver/slot -> WR;
+    running back/tailback -> RB; linebacker/backer -> LB; quarterback -> QB; tight end -> TE.
+
+    Return exactly these keys as JSON: position, grad_year_min, grad_year_max, height_in_min,
+    height_in_max, weight_lbs_min, weight_lbs_max, forty_s_max, shuttle_s_max, bench_lbs_min,
+    squat_lbs_min, gpa_min, sat_min, act_min, state (2-letter code or null), school_contains,
+    name_contains, and interpretation_note — one plain-English sentence describing exactly
+    what was searched for, so a coach can verify the parse before trusting the results.
+    """
+    try:
+        response = await asyncio.to_thread(
+            ai_client.models.generate_content,
+            model=settings.GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        raw = (response.text or "").strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            raise ValueError("query parse returned an invalid result")
+        return GenesisQueryResult(**parsed)
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail=f"Could not parse that query: {exc}")
+    except Exception as exc:
+        logger.exception("genesis query parse failed")
+        raise HTTPException(status_code=502, detail=f"Genesis query parsing failed: {exc}")
 
 
 def _is_youtube_url(url: str) -> bool:

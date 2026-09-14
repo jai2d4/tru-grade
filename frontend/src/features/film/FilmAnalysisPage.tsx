@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TrackAssignment } from "@/api/types";
 import { Icon } from "@/components/IconSprite";
 import { ViewHeader } from "@/components/chrome";
@@ -20,6 +20,7 @@ export function FilmAnalysisPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const film = useFilmAnalysis(videoRef);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -77,6 +78,32 @@ export function FilmAnalysisPage() {
                 hidden
                 onChange={(event) => void film.uploadFilm(event.target.files?.[0])}
               />
+
+              <label htmlFor="v2YoutubeUrl" style={{ margin: "12px 0 4px", display: "block" }}>
+                Or paste a YouTube link — the fix for phone film too large to upload directly
+              </label>
+              <div className="row2" style={{ gridTemplateColumns: "1fr auto", alignItems: "center" }}>
+                <div className="field" style={{ margin: 0 }}>
+                  <Icon name="play" />
+                  <div className="fbody">
+                    <input
+                      id="v2YoutubeUrl"
+                      type="url"
+                      placeholder="https://youtube.com/watch?v=…"
+                      value={youtubeUrl}
+                      onChange={(event) => setYoutubeUrl(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <button
+                  className="btn-solid"
+                  type="button"
+                  onClick={() => void film.uploadFilmFromYoutube(youtubeUrl)}
+                >
+                  Fetch <Icon name="chevron" className="sm" />
+                </button>
+              </div>
+
               <div
                 className="progress-track"
                 role="progressbar"

@@ -22,6 +22,18 @@ class Settings(BaseSettings):
     # origin. Production defaults to same-origin only (an empty allowlist).
     CORS_ALLOW_ORIGINS: str = ""
 
+    # --- Outbound email (password reset) ---
+    # Plain SMTP — works with any provider (a transactional API's own SMTP
+    # relay, or a plain mailbox). Unset outside a local/demo/test APP_ENV
+    # means password reset is honestly unavailable rather than pretending to
+    # send anything — see app/core/email.py.
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+
     # --- PostgreSQL ---
     # Two ways to configure this: a single DATABASE_URL (what Replit, Neon,
     # Railway, and most one-click Postgres add-ons hand you), or the
@@ -36,6 +48,8 @@ class Settings(BaseSettings):
 
     # --- App ---
     APP_ENV: str = "development"
+    # Passed straight to logging.getLogger().setLevel() — see app/core/logging_config.py.
+    LOG_LEVEL: str = "INFO"
     UPLOAD_TMP_DIR: str = "/tmp/tru_uploads"
     MAX_UPLOAD_MB: int = 500
     GEMINI_FILE_PROCESSING_TIMEOUT_S: int = 21600

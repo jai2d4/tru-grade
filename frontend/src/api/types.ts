@@ -15,6 +15,11 @@ export interface UploadedVideo {
   status: string;
 }
 
+/** POST /api/videos/upload-from-youtube — see backend/video/youtube.py. */
+export interface YouTubeUploadRequest {
+  youtube_url: string;
+}
+
 export interface TrackPosition {
   timestamp_ms: number;
   /** [x1, y1, x2, y2] in source-video pixels. */
@@ -222,6 +227,39 @@ export interface PlayerLookupResponse {
   sources?: LookupSource[];
 }
 
+/* ---------- Genesis Search natural-language layer ----------
+ * app/main.py GenesisQueryRequest / GenesisQueryResult — a free-text query
+ * parsed into the same structured fields the roster already supports.
+ * Every field is optional on purpose: null means "not stated in the
+ * query", never a guessed value, and the frontend always shows
+ * interpretation_note next to the parsed filters before using them.
+ */
+
+export interface GenesisQueryRequest {
+  query: string;
+}
+
+export interface GenesisQueryResult {
+  position?: string | null;
+  grad_year_min?: number | null;
+  grad_year_max?: number | null;
+  height_in_min?: number | null;
+  height_in_max?: number | null;
+  weight_lbs_min?: number | null;
+  weight_lbs_max?: number | null;
+  forty_s_max?: number | null;
+  shuttle_s_max?: number | null;
+  bench_lbs_min?: number | null;
+  squat_lbs_min?: number | null;
+  gpa_min?: number | null;
+  sat_min?: number | null;
+  act_min?: number | null;
+  state?: string | null;
+  school_contains?: string | null;
+  name_contains?: string | null;
+  interpretation_note: string;
+}
+
 export type MakeupRank = "GAME_CHANGER" | "ALL_CONF" | "WIN_PLUS" | "WIN" | "WIN_MINUS" | "NGE";
 
 export interface FilmAnalysis {
@@ -409,4 +447,79 @@ export interface FilmGrade {
   confidence?: number | null;
   demo_traits?: Partial<Record<DemoTraitName, DemoTrait>> | null;
   created_at: string;
+}
+
+/* ---------- Public Rating (share links) ----------
+ * app/models/schemas.py ShareLinkOut / PublicAthleteOut, see
+ * app/routers/athletes.py's /share-link and app/routers/public.py.
+ */
+
+/** The coach-facing view of a share link — just enough to build the public
+ * URL client-side. Never carries anything about the athlete itself. */
+export interface ShareLink {
+  token: string;
+  created_at: string;
+}
+
+/** Everything (and only what) an unauthenticated visitor with a valid
+ * share-link token gets to see — deliberately narrow, no hard metrics,
+ * notes, fit scores, or film. */
+export interface PublicAthlete {
+  first_name: string;
+  last_name: string;
+  position: string;
+  school?: string | null;
+  grad_year?: number | null;
+  projected_tier?: string | null;
+  is_game_changer: boolean;
+}
+
+/* ---------- Real accounts (Phase 21) ----------
+ * app/models/schemas.py SignupRequest / LoginRequest / CurrentUser, see
+ * app/routers/auth.py. Session identity is a cookie, never carried here.
+ */
+
+export type UserRole = "coach" | "athlete";
+
+export interface SignupRequest {
+  email: string;
+  password: string;
+  full_name: string;
+  role: UserRole;
+  /** Required (and only meaningful) when role is "athlete" — resolves to an
+   * existing or brand-new athletes row server-side. */
+  position?: LegacyPosition;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+/** The signed-in caller. Never carries a password hash or the raw session
+ * token — that lives only in the httpOnly cookie. */
+export interface CurrentUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  athlete_id?: string | null;
+  created_at: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+/** app/models/schemas.py ForgotPasswordResult. dev_reset_url is only ever
+ * populated in a local/demo/test deployment (see app/core/email.py) — a
+ * real production response never carries a live reset link. */
+export interface ForgotPasswordResult {
+  detail: string;
+  dev_reset_url?: string | null;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
 }

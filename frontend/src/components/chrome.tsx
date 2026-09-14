@@ -108,6 +108,27 @@ export function Stars({ count, total = 5, className = "stars", starClassName = "
   );
 }
 
+/**
+ * Report export — triggers the browser's own print dialog, which every
+ * browser already offers "Save as PDF" from. `styles/app.css`'s `@media
+ * print` block re-themes the existing cards/rows onto a light, printable
+ * palette instead of maintaining a second, hand-built PDF layout that
+ * could drift from what's actually on screen. `no-print` hides the button
+ * itself (and anything else marked `no-print`) from the printed output.
+ */
+export function ExportReportButton({ label = "Export / Print Report" }: { label?: string }) {
+  return (
+    <button
+      type="button"
+      className="chip export-report-btn no-print"
+      onClick={() => window.print()}
+    >
+      <Icon name="download" />
+      {label}
+    </button>
+  );
+}
+
 interface ViewHeaderProps {
   title: ReactNode;
   subtitle: string;

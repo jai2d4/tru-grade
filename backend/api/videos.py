@@ -10,32 +10,66 @@ exists in the shared database.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.models import orm
+from backend.video import youtube
 from backend.video.ingestion import VideoStore
 
+logger = logging.getLogger("tru.videos")
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 storage_root = Path(os.getenv("TRUGRADE_STORAGE_DIR", Path(__file__).parents[1] / "storage"))
-video_store = VideoStore(storage_root, int(os.getenv("MAX_UPLOAD_MB", "500")))
+_max_upload_mb = int(os.getenv("MAX_UPLOAD_MB", "500"))
+video_store = VideoStore(storage_root, _max_upload_mb)
 
 
-@router.post("/upload", status_code=201)
-async def upload_video(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
-    metadata = await video_store.save(file)
+class YouTubeUploadRequest(BaseModel):
+    youtube_url: str = Field(..., min_length=1, max_length=2048)
+
+
+async def _record_upload(metadata: dict, db: AsyncSession) -> dict:
     db.add(orm.FilmUpload(
         id=UUID(metadata["video_id"]), filename=metadata["filename"], status=metadata["status"],
     ))
     await db.commit()
     return {key: metadata[key] for key in ("video_id", "filename", "status")}
+
+
+@router.post("/upload", status_code=201)
+async def upload_video(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+    metadata = await video_store.save(file)
+    return await _record_upload(metadata, db)
+
+
+@router.post("/upload-from-youtube", status_code=201)
+async def upload_video_from_youtube(body: YouTubeUploadRequest, db: AsyncSession = Depends(get_db)):
+    """Fetches the video server-side (see backend/video/youtube.py) and
+    stores it exactly like a direct upload — this is the recommended path
+    for phone-shot film: upload to YouTube (unlisted is fine) from the
+    phone, where mobile upload is a solved problem, then paste the link
+    here instead of pushing the same large file through this API."""
+    downloaded_path, filename = await asyncio.to_thread(youtube.download, body.youtube_url, _max_upload_mb)
+    try:
+        metadata = video_store.save_from_path(downloaded_path, filename)
+    except HTTPException:
+        downloaded_path.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        downloaded_path.unlink(missing_ok=True)
+        logger.exception("failed to store a downloaded YouTube video")
+        raise HTTPException(status_code=500, detail=f"Could not store the downloaded video: {exc}")
+    return await _record_upload(metadata, db)
 
 
 @router.get("")

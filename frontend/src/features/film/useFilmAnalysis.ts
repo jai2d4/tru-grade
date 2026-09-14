@@ -390,6 +390,42 @@ export function useFilmAnalysis(videoRef: RefObject<HTMLVideoElement>) {
     [pollJob, setProgressState],
   );
 
+  /**
+   * The phone-upload workaround: fetches the video server-side instead of
+   * pushing the file through this browser tab, so a large phone-shot file
+   * never has to survive a mobile-connection HTTP upload (see
+   * backend/video/youtube.py for why). Same downstream pipeline as
+   * uploadFilm from here on — analysis start, then the same poll chain.
+   */
+  const uploadFilmFromYoutube = useCallback(
+    async (url: string | undefined) => {
+      const trimmed = (url ?? "").trim();
+      if (!trimmed) return;
+      if (fileUrlRef.current) URL.revokeObjectURL(fileUrlRef.current);
+      fileUrlRef.current = null;
+      setFileUrl(null);
+      setVideoName(trimmed);
+      setProgressState(2, "Fetching the YouTube video…");
+      try {
+        const uploaded = await videos.uploadFromYoutube({ youtube_url: trimmed });
+        if (cancelled.current) return;
+        setVideoId(uploaded.video_id);
+        videoIdRef.current = uploaded.video_id;
+        setVideoName(uploaded.filename);
+        const contentUrl = videos.contentUrl(uploaded.video_id);
+        fileUrlRef.current = contentUrl;
+        setFileUrl(contentUrl);
+        const job = await analysis.start(uploaded.video_id);
+        if (cancelled.current) return;
+        setProgressState(job.progress, job.message ?? "");
+        void pollJob(job.job_id);
+      } catch (error) {
+        setProgressState(0, `YouTube fetch failed: ${messageOf(error)}`);
+      }
+    },
+    [pollJob, setProgressState],
+  );
+
   /* ---------- manual track selection and confirmation ---------- */
 
   const selectTrack = useCallback(
@@ -480,6 +516,7 @@ export function useFilmAnalysis(videoRef: RefObject<HTMLVideoElement>) {
     setOverlayOn,
     setEvidence,
     uploadFilm,
+    uploadFilmFromYoutube,
     selectTrack,
     assignTrack,
     updateIdentity,
