@@ -15,6 +15,11 @@ export interface UploadedVideo {
   status: string;
 }
 
+/** POST /api/videos/upload-from-youtube — see backend/video/youtube.py. */
+export interface YouTubeUploadRequest {
+  youtube_url: string;
+}
+
 export interface TrackPosition {
   timestamp_ms: number;
   /** [x1, y1, x2, y2] in source-video pixels. */

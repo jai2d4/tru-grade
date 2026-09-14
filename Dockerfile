@@ -22,6 +22,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# ffmpeg: yt-dlp needs it to merge YouTube's separate video/audio streams
+# into one playable file for anything above the lowest pre-muxed quality —
+# see backend/video/youtube.py.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

@@ -25,6 +25,7 @@ import type {
   TruthReportJob,
   TruthReportRequest,
   UploadedVideo,
+  YouTubeUploadRequest,
 } from "./types";
 
 export class ApiError extends Error {
@@ -81,6 +82,16 @@ export const videos = {
     const form = new FormData();
     form.append("file", file);
     return request<UploadedVideo>("/api/videos/upload", { method: "POST", body: form });
+  },
+  /** Server-side YouTube fetch — the phone-upload workaround (see
+   * backend/video/youtube.py); same response shape as a direct upload. */
+  uploadFromYoutube(body: YouTubeUploadRequest): Promise<UploadedVideo> {
+    return request<UploadedVideo>("/api/videos/upload-from-youtube", json(body));
+  },
+  /** Direct URL to the stored file — used as the <video> source right after
+   * a YouTube-fetched upload, since there's no local File/object URL. */
+  contentUrl(videoId: string): string {
+    return `${apiBase()}/api/videos/${videoId}/content`;
   },
   tracks(videoId: string): Promise<TracksResponse> {
     return request<TracksResponse>(`/api/videos/${videoId}/tracks`);

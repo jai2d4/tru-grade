@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "@/App";
@@ -107,6 +107,60 @@ describe("Film Analysis route", () => {
       screen.getByText(/Official trait grades appear only after evidence-supported grading/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/Select a graded trait to inspect contributing plays/i)).toBeInTheDocument();
+  });
+
+  it("offers a YouTube link as an alternative to a direct file upload", () => {
+    renderAt("/film-analysis");
+    expect(screen.getByLabelText(/Or paste a YouTube link/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Fetch/i })).toBeInTheDocument();
+  });
+
+  it("fetches a pasted YouTube link server-side and starts analysis on the returned video", async () => {
+    const calls: { url: string; method?: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        calls.push({ url, method: init?.method });
+        if (url.endsWith("/api/videos/upload-from-youtube")) {
+          return Promise.resolve({
+            ok: true,
+            status: 201,
+            json: () =>
+              Promise.resolve({ video_id: "yt-1", filename: "Real Game Film.mp4", status: "uploaded" }),
+          } as Response);
+        }
+        if (url.endsWith("/api/analysis/start/yt-1")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ job_id: "job-1", video_id: "yt-1", status: "uploaded", progress: 2 }),
+          } as Response);
+        }
+        if (url.endsWith("/api/analysis/status/job-1")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({ job_id: "job-1", video_id: "yt-1", status: "extracting_frames", progress: 10 }),
+          } as Response);
+        }
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) } as Response);
+      }),
+    );
+
+    renderAt("/film-analysis");
+    await userEvent.type(screen.getByLabelText(/Or paste a YouTube link/i), "https://youtu.be/dQw4w9WgXcQ");
+    await userEvent.click(screen.getByRole("button", { name: /Fetch/i }));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.endsWith("/api/videos/upload-from-youtube") && c.method === "POST")).toBe(
+        true,
+      ),
+    );
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.endsWith("/api/analysis/start/yt-1"))).toBe(true),
+    );
+    expect(await screen.findByText("Real Game Film.mp4")).toBeInTheDocument();
   });
 });
 
