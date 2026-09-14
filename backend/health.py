@@ -15,6 +15,7 @@ from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.db import _engine
+from backend import native
 from backend.contracts import CONTRACT_VERSION
 
 
@@ -90,6 +91,21 @@ async def readiness(
     return result
 
 
+class NativeCoreStatus(BaseModel):
+    """Whether the optional C/C++ core is loaded.
+
+    A monitor reads this to tell a deploy that silently fell back to the
+    pure-Python path from one that never had the library — the results are
+    identical either way, but the throughput is not. `reason` carries the
+    loader's account of the failure and names only filesystem paths, never a
+    secret."""
+    model_config = ConfigDict(extra="forbid")
+
+    available: bool
+    version: str | None = None
+    reason: str | None = None
+
+
 class StatusResult(BaseModel):
     """A richer, single-call diagnostic report — meant for an external
     monitor (a status dashboard, an on-call bot, a control center like a
@@ -106,6 +122,7 @@ class StatusResult(BaseModel):
     checks: dict[str, DependencyCheck]
     gemini_configured: bool
     api_key_configured: bool
+    native_core: NativeCoreStatus
 
 
 @router.get("/status", response_model=StatusResult)
@@ -133,4 +150,5 @@ async def detailed_status(
         checks=readiness_result.checks or {},
         gemini_configured=bool(settings.GEMINI_API_KEY),
         api_key_configured=bool(settings.API_KEY),
+        native_core=NativeCoreStatus(**native.status()),
     )

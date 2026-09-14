@@ -22,3 +22,6 @@ backend/storage/grades/*
 !backend/storage/**/.gitkeep
 node_modules/
 frontend/node_modules/
+
+# Native core build output — produced by scripts/build_native.sh, never committed.
+native/build/

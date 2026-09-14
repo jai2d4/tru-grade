@@ -17,6 +17,24 @@ ARG VITE_API_KEY
 ENV VITE_API_KEY=$VITE_API_KEY
 RUN npm run build
 
+# ---- Native core build stage ------------------------------------------
+# Compiles the optional C/C++ tracking core (see docs/NATIVE_CORE.md). It lives
+# in its own stage so the ~400MB of compiler toolchain never reaches the runtime
+# image — only the resulting .so is copied across.
+#
+# cmake and a compiler are installed right here, so this stage always produces
+# the library and the runtime COPY below always finds it. build_native.sh's
+# exit-0-without-cmake path is for developer machines, not for this image — if
+# the compile itself breaks, the image build should fail loudly rather than
+# ship a silently slower deploy.
+FROM python:3.11-slim AS native-build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY native/ ./native/
+COPY scripts/build_native.sh ./scripts/
+RUN sh scripts/build_native.sh
+
 # ---- Python runtime -----------------------------------------------------
 FROM python:3.11-slim
 
@@ -33,6 +51,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+# After COPY . . so the freshly compiled library wins over anything a local
+# build left in the context. backend/native/_loader.py looks here first.
+COPY --from=native-build /build/native/build/libtrugrade_core.so ./native/build/
 
 # Render (and most PaaS hosts) inject the port to bind via $PORT.
 ENV PORT=8000
