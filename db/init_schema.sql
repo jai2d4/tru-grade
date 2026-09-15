@@ -349,11 +349,16 @@ ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS result  JSONB;
 ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS analysis_jobs_status_check;
 ALTER TABLE analysis_jobs ADD CONSTRAINT analysis_jobs_status_check CHECK (status IN (
     'queued', 'claimed', 'running', 'extracting_frames', 'detecting', 'tracking',
-    'biomechanics', 'segmenting_plays', 'completed', 'failed'
+    'biomechanics', 'segmenting_plays', 'reasoning', 'completed', 'failed'
 ));
 ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS analysis_jobs_type_check;
+-- truth_report joins the queue for durability rather than weight: it needs
+-- no CV, but it loops an LLM call per play (minutes of work) and used to
+-- run as a web BackgroundTask with its state in a file on the web
+-- service's own ephemeral disk. A restart mid-report left that file
+-- reading "reasoning" forever, with nothing able to notice or recover it.
 ALTER TABLE analysis_jobs ADD CONSTRAINT analysis_jobs_type_check
-    CHECK (job_type IN ('analysis', 'identity'));
+    CHECK (job_type IN ('analysis', 'identity', 'truth_report'));
 
 -- Serving GET /api/videos/{id}/identify: newest identity job for a video.
 CREATE INDEX IF NOT EXISTS idx_analysis_jobs_video_type_created

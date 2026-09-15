@@ -62,6 +62,44 @@ def _assign(client, video_id: str, athlete_id: str | None, *, track_id: int = 1,
     assert response.status_code == 200
 
 
+def _run_queued_truth_report(client, player_id: str, video_id: str) -> dict:
+    """Do what the worker does for the newest queued truth_report job.
+
+    The endpoint used to run the report inline via BackgroundTasks, which
+    TestClient executes synchronously — so these tests could post and then
+    immediately read a finished report. It is queued for a worker now, so
+    the worker's side has to be driven here for the persistence behaviour
+    to be exercised at all.
+    """
+    import asyncio
+
+    from app.core.db import _engine
+    from backend.api.reports import TruthReportRequest, build_truth_report
+
+    def on_fresh_loop(factory):
+        """Run a coroutine on its own loop, disposing the shared engine on
+        both sides.
+
+        The report persists its grade through the shared SQLAlchemy engine,
+        whose pooled connections are bound to whichever loop opened them —
+        the TestClient's. Running it on another loop without disposing
+        first fails with "generator didn't stop after athrow()", and
+        leaving those connections behind afterwards would poison the pool
+        for the client calls that follow.
+        """
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(_engine.dispose())
+            return loop.run_until_complete(factory())
+        finally:
+            loop.run_until_complete(_engine.dispose())
+            loop.close()
+
+    return on_fresh_loop(lambda: build_truth_report(
+        player_id, TruthReportRequest(video_id=video_id, track_id=1, position="DB")
+    ))
+
+
 def test_truth_report_links_the_grade_to_the_tracks_confirmed_athlete(client):
     video_id = _upload_video(client)
     athlete_id = _make_athlete(client)
@@ -73,9 +111,12 @@ def test_truth_report_links_the_grade_to_the_tracks_confirmed_athlete(client):
         json={"video_id": video_id, "track_id": 1, "position": "DB"},
     )
     assert response.status_code == 202
+    # Queued, not run: nothing is processing it inside the web request.
+    queued = client.get(f"/api/players/free-text-id/truth-report/{video_id}").json()
+    assert queued["status"] == "queued"
 
-    status = client.get(f"/api/players/free-text-id/truth-report/{video_id}").json()
-    assert status["status"] == "completed", status
+    result = _run_queued_truth_report(client, "free-text-id", video_id)
+    assert result["status"] == "completed", result
 
     links = client.get(f"/api/v1/athletes/{athlete_id}/grades").json()
     assert len(links) == 1
@@ -100,8 +141,8 @@ def test_truth_report_for_an_unlinked_track_persists_with_no_athlete(client):
         json={"video_id": video_id, "track_id": 1, "position": "DB"},
     )
     assert response.status_code == 202
-    status = client.get(f"/api/players/opponent-99/truth-report/{video_id}").json()
-    assert status["status"] == "completed", status
+    result = _run_queued_truth_report(client, "opponent-99", video_id)
+    assert result["status"] == "completed", result
 
     # No athlete exists to query film-grades from a null link, but we can
     # confirm the local GradeStore (the system of record) still has it —

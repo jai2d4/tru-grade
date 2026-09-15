@@ -171,3 +171,70 @@ def test_queued_identification_with_no_worker_says_so(client):
     assert body["status"] == "processing"       # still the UI's polling state
     assert body["selected_track_id"] is None    # nothing invented
     assert "No worker is currently running" in body["status_detail"]
+
+
+# ---------- truth report ----------
+
+
+def _seed_truth_report_job(player_id: str, video_id: str, **overrides) -> str:
+    payload = json.dumps({"player_id": player_id, "video_id": video_id,
+                          "track_id": 1, "position": "DB"})
+    rows = _sql(
+        "INSERT INTO analysis_jobs (video_id, job_type, status, progress, message, payload) "
+        "VALUES ($1, 'truth_report', $2, $3, $4, $5) RETURNING job_id",
+        uuid.UUID(video_id), overrides.get("status", "queued"),
+        overrides.get("progress", 0), overrides.get("message", "Truth Report queued."),
+        payload,
+    )
+    return str(rows[0]["job_id"])
+
+
+def test_queued_truth_report_with_no_worker_says_it_has_not_started(client):
+    """The report loops an LLM call per play — minutes of work. A queued
+    one with nobody running must not present as though it is underway."""
+    video_id = str(uuid.uuid4())
+    _seed_truth_report_job("player-1", video_id)
+
+    body = client.get(f"/api/players/player-1/truth-report/{video_id}").json()
+    assert body["status"] == "queued"
+    assert body["worker_available"] is False
+    assert "No worker is currently running" in body["message"]
+
+
+def test_truth_report_in_progress_reports_real_reasoning_progress(client):
+    video_id = str(uuid.uuid4())
+    _mark_worker_alive()
+    _seed_truth_report_job("player-1", video_id, status="reasoning", progress=45,
+                           message="Reasoning over play 5 of 11.")
+
+    body = client.get(f"/api/players/player-1/truth-report/{video_id}").json()
+    assert body["status"] == "reasoning"
+    assert body["progress"] == 45
+    assert body["message"] == "Reasoning over play 5 of 11."
+
+
+def test_one_players_report_is_never_served_for_another(client):
+    """Two players can be graded from the same film. Keying only by video
+    would hand back the wrong athlete's report — a serious mix-up, not a
+    cosmetic one."""
+    video_id = str(uuid.uuid4())
+    _seed_truth_report_job("player-a", video_id)
+    _sql(
+        "UPDATE analysis_jobs SET status='completed', result=$2 "
+        "WHERE video_id=$1 AND payload->>'player_id'='player-a'",
+        uuid.UUID(video_id),
+        json.dumps({"status": "completed", "progress": 100, "report": {"player_id": "player-a"}}),
+    )
+    _seed_truth_report_job("player-b", video_id)
+
+    a = client.get(f"/api/players/player-a/truth-report/{video_id}").json()
+    b = client.get(f"/api/players/player-b/truth-report/{video_id}").json()
+
+    assert a["status"] == "completed"
+    assert a["report"]["player_id"] == "player-a"
+    assert b["status"] == "queued", "player-b's report is not player-a's finished one"
+
+
+def test_truth_report_is_404_when_none_was_ever_requested(client):
+    body = client.get(f"/api/players/nobody/truth-report/{uuid.uuid4()}")
+    assert body.status_code == 404

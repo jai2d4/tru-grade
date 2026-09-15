@@ -207,6 +207,39 @@ async def _run_identity_job(job_id: str, job_payload: dict, video_id: str, stora
             logger.info("reclaimed %.1f MB of extracted frames for %s", freed / 1e6, video_id)
 
 
+async def _run_truth_report_job(job_id: str, job_payload: dict) -> None:
+    """Build a Truth Report, streaming its per-play progress into the job
+    row so a watching member sees real movement rather than a bar that
+    sits still for minutes."""
+    from backend.api.reports import TruthReportRequest, build_truth_report
+
+    player_id = job_payload["player_id"]
+    request = TruthReportRequest(**{
+        key: job_payload[key] for key in ("video_id", "track_id", "position")
+    })
+
+    async def on_progress(payload: dict) -> None:
+        async with async_session() as db:
+            await store.update(
+                db, job_id,
+                status="reasoning",
+                progress=int(payload.get("progress", 0)),
+                message=payload.get("message"),
+            )
+
+    result = await build_truth_report(player_id, request, on_progress=on_progress)
+
+    async with async_session() as db:
+        await store.finish(
+            db, job_id,
+            status="completed" if result.get("status") == "completed" else "failed",
+            progress=int(result.get("progress", 0)),
+            message=result.get("message"),
+            error=result.get("error"),
+            result=result,
+        )
+
+
 async def run_once(storage_root: Path, worker_id: str) -> bool:
     """Claim and run a single job. Returns True if one was processed, so
     the caller can poll again immediately instead of sleeping."""
@@ -220,6 +253,23 @@ async def run_once(storage_root: Path, worker_id: str) -> bool:
     job_id = str(job.job_id)
     video_id = str(job.video_id)
     logger.info("claimed job %s for video %s", job_id, video_id)
+
+    if job.job_type == "truth_report":
+        # Reads computed artifacts (tracks/plays/biomechanics), not the
+        # film itself, so a missing video file is not a precondition here.
+        try:
+            await _run_truth_report_job(job_id, job.payload or {})
+            logger.info("completed truth_report job %s", job_id)
+        except Exception as exc:
+            logger.exception("truth_report job %s failed", job_id)
+            async with async_session() as db:
+                await store.finish(
+                    db, job_id, status="failed", error=str(exc),
+                    message="Truth Report failed.",
+                    result={"status": "failed", "progress": 0,
+                            "message": "Truth Report failed.", "error": str(exc)},
+                )
+        return True
 
     video = video_store.get(video_id)
     if not video:

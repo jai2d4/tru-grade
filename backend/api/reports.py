@@ -14,17 +14,19 @@ import json
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import best_effort_session
+from app.core.db import best_effort_session, get_db
 from app.models import orm
 from backend.ai.football_reasoner import FootballReasoningResult
 from backend.ai.football_reasoner import FootballReasoner
 from backend.ai.provider import create_provider
 from backend.api.videos import storage_root
 from backend.football.evidence import EvidenceStore
+from backend.jobs import store
 from backend.football.observations import FootballObservation
 from backend.football.truth_report import build_play_observations, five_trait_summary
 from backend.grading.models import PositionGrade
@@ -114,8 +116,20 @@ async def _persist_grade(
         await session.commit()
 
 
-async def _build_truth_report(player_id: str, request: TruthReportRequest):
-    path = _report_job_path(player_id, request.video_id)
+async def build_truth_report(player_id: str, request: TruthReportRequest,
+                             on_progress=None) -> dict:
+    """Produce the report, reporting progress through `on_progress`.
+
+    Split out from the endpoint so the worker can run it: the reasoning
+    loop makes one LLM call per play and takes minutes, which is far too
+    long to hold open inside a web request's background task whose state
+    lives on that container's own disk. Returns the terminal payload
+    rather than writing it anywhere, so the caller decides where it lands.
+    """
+    async def report(payload: dict) -> None:
+        if on_progress is not None:
+            await on_progress(payload)
+
     try:
         vision_dir = storage_root / "vision" / request.video_id
         tracks = json.loads((vision_dir / "tracks.json").read_text(encoding="utf-8"))
@@ -133,8 +147,9 @@ async def _build_truth_report(player_id: str, request: TruthReportRequest):
         pairs = []
         evidence_store = EvidenceStore(storage_root / "evidence")
         for index, observation in enumerate(observations, 1):
-            path.write_text(json.dumps({"status": "reasoning", "progress": round(index * 90 / max(len(observations), 1)),
-                                        "message": f"Reasoning over play {index} of {len(observations)}."}), encoding="utf-8")
+            await report({"status": "reasoning",
+                          "progress": round(index * 90 / max(len(observations), 1)),
+                          "message": f"Reasoning over play {index} of {len(observations)}."})
             reasoning = await reasoner.reason(observation, allowed_traits)
             pairs.append((observation, reasoning))
             for evidence in observation.evidence:
@@ -151,7 +166,29 @@ async def _build_truth_report(player_id: str, request: TruthReportRequest):
     except Exception as exc:
         result = {"status": "failed", "progress": 0, "message": "Truth Report failed.",
                   "error": str(exc), "updated_at": datetime.now(timezone.utc).isoformat()}
-    path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return result
+
+
+async def _latest_report_job(db: AsyncSession, player_id: str, video_id: str):
+    """Newest truth_report job for this player/video pair.
+
+    latest_for_video() alone isn't enough: two players can be graded from
+    the same film, and returning another player's report would be a
+    serious mix-up rather than a cosmetic one.
+    """
+    try:
+        key = UUID(str(video_id))
+    except (ValueError, AttributeError, TypeError):
+        return None
+    rows = await db.execute(
+        select(orm.AnalysisJob)
+        .where(orm.AnalysisJob.video_id == key,
+               orm.AnalysisJob.job_type == "truth_report",
+               orm.AnalysisJob.payload["player_id"].astext == player_id)
+        .order_by(orm.AnalysisJob.created_at.desc())
+        .limit(1)
+    )
+    return rows.scalar_one_or_none()
 
 
 @router.post("/{player_id}/grades", status_code=201)
@@ -177,18 +214,50 @@ async def get_player_grades(player_id: str):
     return {"player_id": player_id, "grades": grade_store.get(player_id)}
 
 
+_QUEUED_REPORT = {"status": "queued", "progress": 0, "message": "Truth Report queued."}
+
+
 @router.post("/{player_id}/truth-report", status_code=202)
-async def start_truth_report(player_id: str, request: TruthReportRequest, background_tasks: BackgroundTasks):
-    path = _report_job_path(player_id, request.video_id)
-    payload = {"status": "queued", "progress": 0, "message": "Truth Report queued."}
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    background_tasks.add_task(_build_truth_report, player_id, request)
-    return payload
+async def start_truth_report(player_id: str, request: TruthReportRequest,
+                             db: AsyncSession = Depends(get_db)):
+    """Queues the report for a worker.
+
+    This used to run inline as a web BackgroundTask with its state in a
+    file on the web service's own disk. The reasoning loop makes one LLM
+    call per play, so it runs for minutes — and a container restart in
+    that window left the file reading "reasoning" forever, with nothing
+    able to notice or recover it. On the shared queue it gets the same
+    heartbeat and stale-recovery the analysis jobs have.
+    """
+    await store.enqueue(
+        db, request.video_id, job_type="truth_report",
+        payload={"player_id": player_id, **request.model_dump()},
+        message=_QUEUED_REPORT["message"],
+    )
+    return _QUEUED_REPORT
 
 
 @router.get("/{player_id}/truth-report/{video_id}")
-async def truth_report_status(player_id: str, video_id: str):
-    path = _report_job_path(player_id, video_id)
-    if not path.is_file():
+async def truth_report_status(player_id: str, video_id: str,
+                              db: AsyncSession = Depends(get_db)):
+    job = await _latest_report_job(db, player_id, video_id)
+    if job is None:
         raise HTTPException(404, "Truth Report job not found.")
-    return json.loads(path.read_text(encoding="utf-8"))
+    if job.result is not None:
+        return job.result
+    payload = {
+        "status": "reasoning" if job.status == "reasoning" else "queued",
+        "progress": job.progress or 0,
+        "message": job.message or _QUEUED_REPORT["message"],
+    }
+    # Same honesty as the analysis queue: a queued report with nobody
+    # running is not "about to start", and saying so beats a progress bar
+    # that will never move.
+    if job.status == "queued" and not await store.any_worker_alive(db):
+        payload["message"] = (
+            "Waiting for an analysis worker. No worker is currently running, so this "
+            "Truth Report has not started — it stays queued and begins automatically "
+            "once one is available."
+        )
+        payload["worker_available"] = False
+    return payload
