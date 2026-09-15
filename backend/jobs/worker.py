@@ -76,8 +76,27 @@ async def _run_job(job_id: str, video: dict, storage_root: Path) -> None:
     # asyncio.to_thread, so they can't await. Hand them back to the loop.
     loop = asyncio.get_running_loop()
 
+    # Throttled, because each report is a database write. The pipeline
+    # calls back once per frame, and native-rate extraction of a 10-minute
+    # 60fps clip is ~36,000 frames — which was 36,000 UPDATE+COMMIT round
+    # trips, enough to dominate the runtime and outweigh the actual
+    # analysis. A watching member cannot perceive more than whole
+    # percentage points anyway.
+    last_reported = -1
+
     def progress_cb(value: int) -> None:
-        asyncio.run_coroutine_threadsafe(report(progress=int(value)), loop)
+        nonlocal last_reported
+        percent = int(value)
+        if percent == last_reported:
+            return
+        last_reported = percent
+        asyncio.run_coroutine_threadsafe(report(progress=percent), loop)
+
+    def reset_progress() -> None:
+        """Each stage counts 0-100 again, so the throttle has to forget the
+        previous stage's position or the new one reports nothing."""
+        nonlocal last_reported
+        last_reported = -1
 
     await report(status="extracting_frames", progress=1,
                  message="Extracting timestamped tracking frames.")
@@ -96,6 +115,7 @@ async def _run_job(job_id: str, video: dict, storage_root: Path) -> None:
     else:
         await report(message="Resuming from completed frame extraction.", frame_count=len(frames))
 
+    reset_progress()
     await report(status="detecting", progress=0, frame_count=len(frames),
                  message="Detecting players and football objects.")
 
@@ -115,6 +135,7 @@ async def _run_job(job_id: str, video: dict, storage_root: Path) -> None:
 
     biomechanics = None
     if os.getenv("ENABLE_BIOMECHANICS", "false").lower() == "true":
+        reset_progress()
         await report(status="biomechanics", progress=0,
                      message="Estimating player pose, football track, and contact geometry.")
         biomechanics = _load_json(vision_dir / "biomechanics.json")

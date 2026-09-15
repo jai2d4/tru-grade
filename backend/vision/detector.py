@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 class DetectorUnavailable(RuntimeError):
@@ -44,9 +44,7 @@ class FootballDetector:
             return "official"
         return None
 
-    def detect_frame(self, frame: Any, frame_number: int, timestamp_ms: int) -> dict:
-        self.load_model()
-        result = self.model.predict(frame, conf=self.confidence, device=self.device, verbose=False)[0]
+    def _parse(self, result: Any, frame_number: int, timestamp_ms: int) -> dict:
         names = result.names
         detections = []
         for box in result.boxes:
@@ -58,5 +56,33 @@ class FootballDetector:
             detections.append({"class": mapped, "confidence": round(float(box.conf.item()), 4), "bbox": coords})
         return {"frame": frame_number, "timestamp_ms": timestamp_ms, "detections": detections}
 
-    def detect_batch(self, frames: Iterable[tuple[Any, int, int]]) -> list[dict]:
-        return [self.detect_frame(image, number, timestamp) for image, number, timestamp in frames]
+    def detect_frame(self, frame: Any, frame_number: int, timestamp_ms: int) -> dict:
+        self.load_model()
+        result = self.model.predict(frame, conf=self.confidence, device=self.device, verbose=False)[0]
+        return self._parse(result, frame_number, timestamp_ms)
+
+    def detect_batch(self, frames: list[Any], metadata: list[dict]) -> list[dict]:
+        """Detect over several frames in one model call.
+
+        A GPU spends most of a single-frame call on transfer and launch
+        overhead rather than on the convolutions, so feeding one frame at a
+        time leaves the hardware largely idle. Batching is the difference
+        between a clip analysing in minutes and in hours.
+
+        Falls back to per-frame prediction if the model rejects a batch, so
+        an adapter that only accepts single images still works.
+        """
+        self.load_model()
+        if not frames:
+            return []
+        try:
+            results = self.model.predict(frames, conf=self.confidence, device=self.device, verbose=False)
+        except Exception:
+            results = [
+                self.model.predict(frame, conf=self.confidence, device=self.device, verbose=False)[0]
+                for frame in frames
+            ]
+        return [
+            self._parse(result, meta["frame_number"], meta["timestamp_ms"])
+            for result, meta in zip(results, metadata)
+        ]
