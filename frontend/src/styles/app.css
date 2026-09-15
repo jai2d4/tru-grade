@@ -312,6 +312,12 @@ td.val.laser{color:var(--laser)}
 .progress-track{height:8px;background:#05070b;border:1px solid var(--line);border-radius:20px;overflow:hidden;margin:12px 0 6px}
 .progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--laser));transition:width .25s}
 .film-status-line{display:flex;justify-content:space-between;gap:12px;color:var(--dim);font:11px 'IBM Plex Mono'}
+/* Shown when a job is queued but no worker is running. Amber, not red:
+   nothing has failed and no film is lost — it simply hasn't started. */
+.film-stalled{display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:10px 12px;
+  background:rgba(232,178,58,.08);border:1px solid rgba(232,178,58,.3);border-radius:8px;
+  color:var(--dim);font-size:12px;line-height:1.5}
+.film-stalled .pill{flex:none}
 .compact-list{display:grid;gap:7px;max-height:240px;overflow:auto}
 .compact-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--dim);cursor:pointer;text-align:left;width:100%}
 .compact-row:hover,.compact-row.selected{border-color:var(--blue);color:var(--chalk)}

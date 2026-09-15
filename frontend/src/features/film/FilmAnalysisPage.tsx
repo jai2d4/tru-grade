@@ -118,6 +118,20 @@ export function FilmAnalysisPage() {
                 <span>{film.progress.status}</span>
                 <span>{film.progress.percent}%</span>
               </div>
+              {!film.workerAvailable && (
+                // A queued job with nothing processing it would otherwise
+                // look identical to one that's working — a 0% bar and a
+                // status line. Say plainly that it hasn't started, and that
+                // the film is safe, rather than implying progress.
+                <div className="film-stalled" role="status">
+                  <span className="pill na">NOT PROCESSING</span>
+                  <span>
+                    No analysis worker is running, so this film hasn’t started processing.
+                    It stays queued and begins automatically once a worker is available —
+                    nothing has been lost.
+                  </span>
+                </div>
+              )}
             </section>
 
             {/* ---------- player ---------- */}

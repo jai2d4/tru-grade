@@ -91,6 +91,11 @@ export interface AnalysisJob {
   error?: string;
   created_at?: string;
   updated_at?: string;
+  /** False when the job is queued and no analysis worker is running, so
+   * nothing is processing it yet. Absent on older responses — treat
+   * undefined as "no reason to think anything is wrong", never as false,
+   * or the UI would cry wolf whenever the field is simply missing. */
+  worker_available?: boolean;
 }
 
 /* ---------- automatic identity ---------- */

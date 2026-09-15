@@ -88,6 +88,13 @@ export function useFilmAnalysis(videoRef: RefObject<HTMLVideoElement>) {
   const [overlayOn, setOverlayOn] = useState(true);
   /** Percentage shown in place of the confidence line while a report builds. */
   const [reportProgress, setReportProgress] = useState<number | null>(null);
+  /**
+   * False only when the backend actively reports that no analysis worker is
+   * running, so a queued job isn't being processed. Undefined/absent means
+   * "no reason to think anything is wrong" — defaulting to false would make
+   * the UI cry wolf against any older response that omits the field.
+   */
+  const [workerAvailable, setWorkerAvailable] = useState(true);
 
   // Mutable mirrors, so the poll chains can read current values without being
   // re-created on every state change.
@@ -338,6 +345,7 @@ export function useFilmAnalysis(videoRef: RefObject<HTMLVideoElement>) {
         for (;;) {
           const job: AnalysisJob = await analysis.status(jobId);
           if (cancelled.current) return;
+          setWorkerAvailable(job.worker_available !== false);
           setProgressState(job.progress, job.message || job.status.replaceAll("_", " "));
           setJobDetail([
             { label: "Status", value: job.status },
@@ -511,6 +519,7 @@ export function useFilmAnalysis(videoRef: RefObject<HTMLVideoElement>) {
     reportProgress,
     traits,
     traitsMessage,
+    workerAvailable,
     evidence,
     overlayOn,
     setOverlayOn,

@@ -162,7 +162,70 @@ describe("Film Analysis route", () => {
     );
     expect(await screen.findByText("Real Game Film.mp4")).toBeInTheDocument();
   });
+
+  /** Analysis runs in a separate worker process now. When none is running a
+   *  queued job would otherwise present exactly like a working one — a 0%
+   *  bar and a status line — so the workspace has to say it hasn't started. */
+  function stubAnalysis(job: Record<string, unknown>) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        const body = url.endsWith("/api/videos/upload-from-youtube")
+          ? { video_id: "v1", filename: "film.mp4", status: "uploaded" }
+          : url.endsWith("/api/analysis/start/v1")
+            ? { job_id: "j1", video_id: "v1", status: "queued", progress: 0 }
+            : url.endsWith("/api/analysis/status/j1")
+              ? job
+              : {};
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response);
+      }),
+    );
+  }
+
+  async function startAnalysis() {
+    renderAt("/film-analysis");
+    await userEvent.type(screen.getByLabelText(/Or paste a YouTube link/i), "https://youtu.be/abc");
+    await userEvent.click(screen.getByRole("button", { name: /Fetch/i }));
+  }
+
+  it("says the film has not started when no analysis worker is running", async () => {
+    stubAnalysis({
+      job_id: "j1", video_id: "v1", status: "queued", progress: 0,
+      message: "Waiting for an analysis worker.", worker_available: false,
+    });
+    await startAnalysis();
+
+    expect(await screen.findByText(/NOT PROCESSING/i)).toBeInTheDocument();
+    expect(screen.getByText(/hasn.t started processing/i)).toBeInTheDocument();
+    // Reassures rather than alarms: the upload is not lost.
+    expect(screen.getByText(/nothing has been lost/i)).toBeInTheDocument();
+  });
+
+  it("stays quiet while a worker is processing the film", async () => {
+    stubAnalysis({
+      job_id: "j1", video_id: "v1", status: "detecting", progress: 40,
+      message: "Detecting players.", worker_available: true,
+    });
+    await startAnalysis();
+
+    expect(await screen.findByText("Detecting players.")).toBeInTheDocument();
+    expect(screen.queryByText(/NOT PROCESSING/i)).not.toBeInTheDocument();
+  });
+
+  it("does not cry wolf when the response omits worker_available", async () => {
+    // An older backend simply won't send the field. Absent must mean "no
+    // reason to think anything is wrong", not "nothing is running".
+    stubAnalysis({
+      job_id: "j1", video_id: "v1", status: "extracting_frames", progress: 5,
+      message: "Extracting frames.",
+    });
+    await startAnalysis();
+
+    expect(await screen.findByText("Extracting frames.")).toBeInTheDocument();
+    expect(screen.queryByText(/NOT PROCESSING/i)).not.toBeInTheDocument();
+  });
 });
+
 
 describe("navigation", () => {
   it("moves between the two working views without a reload", async () => {
