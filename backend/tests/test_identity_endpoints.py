@@ -185,3 +185,37 @@ def test_a_second_run_reports_the_newest_result_not_a_stale_one(client, video_wi
 
     served = client.get(f"/api/videos/{video_with_tracks}/identify").json()
     assert served["selected_track_id"] == 9
+
+
+# ---------- "not analysed" vs "genuinely nothing found" ----------
+
+
+def test_tracks_endpoint_distinguishes_unanalyzed_film_from_empty_results(client):
+    """An empty list meant two different things — "analysis found no
+    players" and "analysis never ran" — which a caller cannot tell apart.
+    Reporting the first when the second is true would be inventing a
+    finding out of missing work."""
+    upload = client.post("/api/videos/upload", files={"file": ("new.mp4", b"x", "video/mp4")})
+    video_id = upload.json()["video_id"]
+
+    before = client.get(f"/api/videos/{video_id}/tracks").json()
+    assert before["tracks"] == []
+    assert before["analyzed"] is False
+
+    import backend.api.videos as videos_module
+    tracks_path = videos_module.storage_root / "vision" / video_id / "tracks.json"
+    tracks_path.parent.mkdir(parents=True, exist_ok=True)
+    tracks_path.write_text("[]", encoding="utf-8")  # ran, genuinely found none
+
+    after = client.get(f"/api/videos/{video_id}/tracks").json()
+    assert after["tracks"] == []
+    assert after["analyzed"] is True, "a completed run that found nothing must be distinguishable"
+
+
+def test_detections_endpoint_reports_whether_it_ran(client):
+    upload = client.post("/api/videos/upload", files={"file": ("d.mp4", b"x", "video/mp4")})
+    video_id = upload.json()["video_id"]
+
+    body = client.get(f"/api/videos/{video_id}/detections").json()
+    assert body["detections"] == []
+    assert body["analyzed"] is False

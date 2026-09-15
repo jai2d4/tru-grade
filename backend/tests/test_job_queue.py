@@ -79,6 +79,34 @@ async def _dispose():
     await _engine.dispose()
 
 
+async def _backdate(job_id: str, **columns) -> None:
+    """Age a row directly in SQL, on the caller's own loop.
+
+    store.update() forcibly stamps updated_at with the current time — which
+    is right, updated_at should always reflect the real update — so it
+    cannot be used to simulate an old job. Reaching past it is the point.
+    """
+    import uuid as _uuid
+
+    import asyncpg
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    assignments = ", ".join(f"{name} = ${i + 2}" for i, name in enumerate(columns))
+    conn = await asyncpg.connect(
+        host=settings.POSTGRES_HOST, port=settings.POSTGRES_PORT,
+        user=settings.POSTGRES_USER, password=settings.POSTGRES_PASSWORD,
+        database=settings.POSTGRES_DB,
+    )
+    try:
+        await conn.execute(
+            f"UPDATE analysis_jobs SET {assignments} WHERE job_id = $1",
+            _uuid.UUID(job_id), *columns.values(),
+        )
+    finally:
+        await conn.close()
+
+
 def test_enqueued_job_starts_queued_and_is_readable_back():
     async def scenario():
         video_id = str(uuid4())
@@ -371,3 +399,55 @@ def test_an_exhausted_job_stops_blocking_the_rest_of_the_queue():
         "the exhausted job was claimed again instead of the healthy one behind it"
     )
     assert claimed_next != poison_id
+
+
+# ---------- retention ----------
+
+
+def test_finished_jobs_past_the_retention_window_are_purged():
+    """Job rows carry payloads and whole result documents, so without a
+    bound the table grows for the life of the deployment."""
+    async def scenario():
+        async with async_session() as db:
+            old = await store.enqueue(db, str(uuid4()))
+            old_id = str(old.job_id)
+        async with async_session() as db:
+            await store.finish(db, old_id, status="completed", progress=100)
+        await _backdate(old_id, updated_at=datetime.now(timezone.utc) - timedelta(days=90))
+        async with async_session() as db:
+            purged = await store.purge_finished_jobs(db)
+        async with async_session() as db:
+            return purged, await store.get(db, old_id)
+
+    purged, job = _run(scenario())
+    assert purged >= 1
+    assert job is None
+
+
+def test_recent_and_unfinished_jobs_are_never_purged():
+    """Age alone must not delete anything: a long-running report is still
+    being watched, and a recently finished one is what support looks at."""
+    async def scenario():
+        async with async_session() as db:
+            recent = await store.enqueue(db, str(uuid4()))
+            recent_id = str(recent.job_id)
+        async with async_session() as db:
+            await store.finish(db, recent_id, status="completed", progress=100)
+
+        async with async_session() as db:
+            running = await store.enqueue(db, str(uuid4()))
+            running_id = str(running.job_id)
+        # In flight, and older than the window — must still survive.
+        async with async_session() as db:
+            await store.update(db, running_id, status="detecting")
+        await _backdate(running_id, updated_at=datetime.now(timezone.utc) - timedelta(days=90))
+
+        async with async_session() as db:
+            await store.purge_finished_jobs(db)
+        async with async_session() as db:
+            return await store.get(db, recent_id), await store.get(db, running_id)
+
+    recent, running = _run(scenario())
+    assert recent is not None, "a just-finished job was deleted"
+    assert running is not None, "an in-flight job was deleted because it was old"
+    assert running.status == "detecting"

@@ -17,7 +17,7 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update as sql_update
+from sqlalchemy import delete as sql_delete, select, update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -270,3 +270,30 @@ async def any_worker_alive(db: AsyncSession, within: timedelta = WORKER_ALIVE_WI
         .limit(1)
     )
     return found is not None
+
+
+# Finished jobs are kept long enough to be useful for support ("what
+# happened to my film last week?") and no longer. Without a bound the
+# table grows for the life of the deployment, and its rows carry payloads
+# and full result documents, not just counters.
+COMPLETED_JOB_RETENTION = timedelta(days=int(os.getenv("JOB_RETENTION_DAYS", "30")))
+
+
+async def purge_finished_jobs(
+    db: AsyncSession, older_than: timedelta = COMPLETED_JOB_RETENTION
+) -> int:
+    """Delete completed/failed jobs finished longer ago than `older_than`.
+
+    Only terminal jobs are eligible: anything queued or in flight is left
+    alone regardless of age, so a long-running report is never deleted out
+    from under the member watching it.
+    """
+    cutoff = datetime.now(timezone.utc) - older_than
+    result = await db.execute(
+        sql_delete(orm.AnalysisJob).where(
+            orm.AnalysisJob.status.in_(_TERMINAL),
+            orm.AnalysisJob.updated_at < cutoff,
+        )
+    )
+    await db.commit()
+    return result.rowcount or 0

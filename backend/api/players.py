@@ -117,18 +117,34 @@ async def _persist_automatic_assignment(video_id: str, track_id: int, request: A
 
 @router.get("/{video_id}/tracks")
 async def get_tracks(video_id: str, db: AsyncSession = Depends(get_db)):
+    """Tracks for a video, plus whether tracking has actually run.
+
+    An empty list used to mean two very different things — "analysis found
+    no players in this film" and "analysis has not run yet" — which are
+    indistinguishable to a caller and lead to reporting a real absence of
+    players when in fact nothing has been computed. `analyzed` separates
+    them.
+    """
     _require_video(video_id)
     path = _track_path(video_id)
-    tracks = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
+    analyzed = path.is_file()
+    tracks = json.loads(path.read_text(encoding="utf-8")) if analyzed else []
     assignments = await _get_assignments(db, UUID(video_id))
-    return {"video_id": video_id, "tracks": tracks, "assignments": assignments}
+    return {"video_id": video_id, "tracks": tracks, "assignments": assignments,
+            "analyzed": analyzed}
 
 
 @router.get("/{video_id}/detections")
 async def get_detections(video_id: str):
     _require_video(video_id)
     path = storage_root / "vision" / video_id / "detections.json"
-    return {"video_id": video_id, "detections": json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []}
+    analyzed = path.is_file()
+    return {
+        "video_id": video_id,
+        "detections": json.loads(path.read_text(encoding="utf-8")) if analyzed else [],
+        # As above: no detections found is not the same as not yet looked.
+        "analyzed": analyzed,
+    }
 
 
 @router.get("/{video_id}/biomechanics")

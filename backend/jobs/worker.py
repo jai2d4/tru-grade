@@ -334,6 +334,13 @@ async def main() -> None:
                     recovered = await store.requeue_stale(db)
                 if recovered:
                     logger.warning("returned %d stalled job(s) to the queue", recovered)
+                # Same cadence: finished jobs carry payloads and full result
+                # documents, so the table would otherwise grow for the life
+                # of the deployment.
+                async with async_session() as db:
+                    purged = await store.purge_finished_jobs(db)
+                if purged:
+                    logger.info("purged %d finished job(s) past the retention window", purged)
 
             if await run_once(storage_root, worker_id):
                 continue  # drain the queue before sleeping again
