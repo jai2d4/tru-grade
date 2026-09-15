@@ -7,6 +7,7 @@ from math import atan2, degrees, hypot
 from pathlib import Path
 from typing import Any
 
+from backend.vision import ball_filter
 from backend.vision.detector import FootballDetector
 
 
@@ -58,14 +59,25 @@ def body_orientation(keypoints: list[dict]) -> float | None:
 
 
 class BallTracker:
-    """Nearest-motion association for dedicated football detections."""
+    """Nearest-motion association for dedicated football detections.
+
+    Candidates are plausibility-filtered first (see
+    backend/vision/ball_filter.py): with a stock YOLO model "football" is
+    COCO's `sports ball` class, which mistakes helmets and turf patches
+    for the ball often enough to matter — ball positions reach an
+    athlete's grade through truth_report.py's ball-distance evidence.
+    """
 
     def __init__(self, max_jump_px: float = 150):
         self.max_jump_px = max_jump_px
         self.positions: list[dict] = []
+        # Counted, not discarded silently, so export() can report how much
+        # the detector produced that could not have been a football.
+        self.rejected_count = 0
 
     def update(self, detection_frame: dict):
-        balls = [item for item in detection_frame["detections"] if item["class"] == "football"]
+        balls, rejected = ball_filter.filter_candidates(detection_frame["detections"])
+        self.rejected_count += len(rejected)
         if not balls:
             return None
         prior = self.positions[-1] if self.positions else None
@@ -84,9 +96,32 @@ class BallTracker:
         return point
 
     def export(self):
-        return {"track_id": "football-1", "positions": self.positions,
-                "confidence": round(sum(p["confidence"] for p in self.positions) / len(self.positions), 4)
-                if self.positions else 0}
+        """Ball track plus the provenance needed to judge it.
+
+        `confidence` is the detector's mean confidence over accepted
+        frames — it says nothing about whether the model knows what a
+        football is. `model_is_football_specific` is what answers that,
+        and anything reading this should weigh the track accordingly
+        rather than treating a stock-model track as equivalent.
+        """
+        import os
+
+        ball_model = os.getenv("BALL_MODEL_PATH", "yolo11n.pt")
+        generic = ball_model.startswith("yolo") and "football" not in ball_model.lower()
+        return {
+            "track_id": "football-1",
+            "positions": self.positions,
+            "confidence": round(sum(p["confidence"] for p in self.positions) / len(self.positions), 4)
+            if self.positions else 0,
+            "model": ball_model,
+            "model_is_football_specific": not generic,
+            "rejected_implausible": self.rejected_count,
+            "note": (
+                "Detected with a general-purpose model via COCO's 'sports ball' class, "
+                "not football-trained weights. Implausible candidates were filtered, but "
+                "ball-derived evidence is weaker than player tracking on this film."
+            ) if generic else None,
+        }
 
 
 def contact_geometry(tracks: list[dict], proximity_ratio: float = .18) -> list[dict]:
