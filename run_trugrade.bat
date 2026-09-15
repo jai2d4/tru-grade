@@ -7,6 +7,11 @@ if not exist ".venv\Scripts\python.exe" (
   exit /b 1
 )
 
+rem Apply any new schema first — idempotent, and the same thing the Docker
+rem entrypoint does. Without it, a pull that adds a table (like the analysis
+rem job queue) leaves the app running against an older database.
+"%~dp0.venv\Scripts\python.exe" "%~dp0scripts\init_db.py"
+
 rem Three processes, not two. Film analysis no longer runs inside the web
 rem process (it loaded torch into it, which a small web instance cannot
 rem hold) — it runs in the worker below, which polls the job queue. Without
