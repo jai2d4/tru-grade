@@ -69,6 +69,23 @@ def automatic_field_calibration(frame) -> FieldCalibration | dict:
     polygon = cv2.approxPolyDP(contour, epsilon, True).reshape(-1, 2)
     if len(polygon) != 4 or coverage < .25:
         return automatic_calibration_unavailable("The visible field boundary was not complete enough.")
+    # The whole field, or only part of it?
+    #
+    # Everything below maps the detected quadrilateral onto a full
+    # 100x53.3 yard field. If what's visible is only PART of the field —
+    # the common case for phone footage shot from one sideline — that
+    # assumption is wrong and every yard number derived from it is
+    # silently wrong with it. A field that runs off the edge of the frame
+    # is exactly that situation: the boundary continues outside the image,
+    # so its true extent is unknowable from this frame. Refuse instead of
+    # producing confident nonsense; manual field points still work.
+    height_px, width_px = frame.shape[:2]
+    if _touches_border(polygon, width_px, height_px):
+        return automatic_calibration_unavailable(
+            "The field runs past the edge of the frame, so the full field boundary "
+            "isn't visible and its scale can't be established. Confirm field points manually."
+        )
+
     ordered = _order_corners(polygon.astype(float))
     destinations = ((0, 0), (100, 0), (100, 53.3), (0, 53.3))
     confidence = min(.8, round(.45 + coverage * .35, 3))
@@ -77,6 +94,19 @@ def automatic_field_calibration(frame) -> FieldCalibration | dict:
                         x_yards=field[0], y_yards=field[1])
         for pixel, field in zip(ordered, destinations)
     ], confidence=confidence, method="automatic_visible_field_estimate")
+
+
+def _touches_border(polygon: np.ndarray, width: int, height: int, tolerance: int = 2) -> bool:
+    """True when any detected corner sits on the frame edge.
+
+    `tolerance` absorbs the pixel or two that contour approximation
+    shaves off a boundary that really is flush with the edge.
+    """
+    xs, ys = polygon[:, 0], polygon[:, 1]
+    return bool(
+        np.any(xs <= tolerance) or np.any(ys <= tolerance)
+        or np.any(xs >= width - 1 - tolerance) or np.any(ys >= height - 1 - tolerance)
+    )
 
 
 def _order_corners(points: np.ndarray) -> np.ndarray:

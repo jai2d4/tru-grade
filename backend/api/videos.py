@@ -30,7 +30,7 @@ logger = logging.getLogger("tru.videos")
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 storage_root = Path(os.getenv("TRUGRADE_STORAGE_DIR", Path(__file__).parents[1] / "storage"))
-_max_upload_mb = int(os.getenv("MAX_UPLOAD_MB", "500"))
+_max_upload_mb = int(os.getenv("MAX_UPLOAD_MB", "2048"))
 video_store = VideoStore(storage_root, _max_upload_mb)
 
 

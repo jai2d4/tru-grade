@@ -84,6 +84,20 @@ estimated; verified absolute yardage requires known field points. Weak or
 incomplete geometry returns a manual-calibration requirement instead of
 invented field-speed metrics.
 
+What the automatic path is and isn't: it finds the field-coloured region,
+fits a quadrilateral, and maps that onto a full 100x53.3 yard field.
+Measured against synthetic views with known geometry
+(backend/tests/test_field_calibration_accuracy.py), that is accurate to
+under a yard at interior points — but synthetic footage has no lens
+distortion, no players on the boundary and no stadium in frame, so treat
+it as an upper bound rather than a promise about game film. Two limits are
+enforced rather than hoped for: a field running past the edge of the frame
+is refused outright (its true extent is unknowable, so mapping it onto a
+full field would silently mis-scale every derived yard), and the reported
+`confidence` is a coverage heuristic — how much green fills the frame —
+not a measurement-error estimate. Real-footage accuracy remains unproven;
+confirming known field points is still what produces verified yardage.
+
 Phase 14 adds a swappable full-frame pose model, dedicated configurable
 football detection with persistent ball tracking, body-orientation evidence,
 and player-to-player contact geometry. Proximity is stored only as a contact
