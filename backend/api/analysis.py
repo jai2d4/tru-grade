@@ -43,7 +43,47 @@ async def analysis_status(job_id: str, db: AsyncSession = Depends(get_db)):
     job = await store.get(db, job_id)
     if not job:
         raise HTTPException(404, "Analysis job not found.")
-    return store.as_dict(job)
+    payload = store.as_dict(job)
+
+    # A queued job with no worker running looks exactly like one waiting
+    # its turn, so the UI would show a progress bar that never moves. Say
+    # what is actually true instead — the job is safely queued and will
+    # run as soon as a worker is started.
+    if job.status == "queued" and not await store.any_worker_alive(db):
+        payload["message"] = (
+            "Waiting for an analysis worker. No worker is currently running, so this "
+            "film has not started processing yet — it stays queued and will begin "
+            "automatically once one is available."
+        )
+        payload["worker_available"] = False
+    else:
+        payload["worker_available"] = True
+    return payload
+
+
+@router.get("/workers")
+async def analysis_workers(db: AsyncSession = Depends(get_db)):
+    """Which workers are alive, for an operator checking whether film can
+    be processed at all. Reports emptiness plainly rather than implying
+    capacity that isn't there."""
+    workers = await store.live_workers(db)
+    return {
+        "workers": [
+            {
+                "worker_id": worker.worker_id,
+                "device": worker.device,
+                "last_seen_at": worker.last_seen_at.isoformat() if worker.last_seen_at else None,
+            }
+            for worker in workers
+        ],
+        "available": bool(workers),
+        "detail": (
+            f"{len(workers)} analysis worker(s) available."
+            if workers else
+            "No analysis worker is running. Film can be uploaded, but it will stay "
+            "queued until one is started (see docs/RUN_ON_V2.md)."
+        ),
+    }
 
 
 @router.post("/resume/{job_id}", status_code=202)

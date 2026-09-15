@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, update as sql_update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import orm
@@ -185,3 +186,52 @@ async def requeue_stale(db: AsyncSession, stale_after: timedelta = STALE_AFTER) 
     )
     await db.commit()
     return result.rowcount or 0
+
+
+# ---------------------------------------------------------------------
+# Worker liveness
+#
+# Separate from a job's heartbeat: that tracks one job's progress, this
+# answers "is anything processing film at all?". Without it, a queued job
+# with no worker running is indistinguishable from one waiting its turn,
+# and the UI shows a progress bar that will never move.
+# ---------------------------------------------------------------------
+
+# A worker polls every WORKER_POLL_INTERVAL_S (default 5s), so a gap of
+# minutes means it is genuinely gone rather than briefly busy. Generous
+# enough that a long single-frame stage never marks a live worker dead.
+WORKER_ALIVE_WITHIN = timedelta(minutes=3)
+
+
+async def record_worker_heartbeat(db: AsyncSession, worker_id: str, device: str | None = None) -> None:
+    """Upsert this worker's liveness row. Called on every poll."""
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        pg_insert(orm.WorkerHeartbeat)
+        .values(worker_id=worker_id, last_seen_at=now, device=device)
+        .on_conflict_do_update(
+            index_elements=[orm.WorkerHeartbeat.worker_id],
+            set_={"last_seen_at": now, "device": device},
+        )
+    )
+    await db.commit()
+
+
+async def live_workers(db: AsyncSession, within: timedelta = WORKER_ALIVE_WITHIN) -> list[orm.WorkerHeartbeat]:
+    cutoff = datetime.now(timezone.utc) - within
+    rows = await db.execute(
+        select(orm.WorkerHeartbeat)
+        .where(orm.WorkerHeartbeat.last_seen_at >= cutoff)
+        .order_by(orm.WorkerHeartbeat.last_seen_at.desc())
+    )
+    return list(rows.scalars().all())
+
+
+async def any_worker_alive(db: AsyncSession, within: timedelta = WORKER_ALIVE_WITHIN) -> bool:
+    cutoff = datetime.now(timezone.utc) - within
+    found = await db.scalar(
+        select(orm.WorkerHeartbeat.worker_id)
+        .where(orm.WorkerHeartbeat.last_seen_at >= cutoff)
+        .limit(1)
+    )
+    return found is not None

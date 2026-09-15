@@ -360,6 +360,27 @@ CREATE INDEX IF NOT EXISTS idx_analysis_jobs_video_type_created
     ON analysis_jobs (video_id, job_type, created_at DESC);
 
 -- ------------------------------------------------------------
+-- Worker liveness
+--
+-- Whether ANY worker exists is separate from whether a particular job is
+-- progressing. A queued job with no worker running looks identical to a
+-- queued job waiting its turn — from the API, and from the progress bar a
+-- member is watching. Without this table the honest answer ("nothing is
+-- processing film right now") is unknowable, and the UI shows a spinner
+-- that means nothing. Each worker upserts its row as it polls.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS worker_heartbeats (
+    worker_id    TEXT PRIMARY KEY,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Reported so an operator can tell a GPU worker from a CPU one when
+    -- more than one is running.
+    device       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_heartbeats_last_seen
+    ON worker_heartbeats (last_seen_at DESC);
+
+-- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,
 -- best to worst: GAME_CHANGER, ALL_CONF, WIN_PLUS, WIN, WIN_MINUS, NGE.

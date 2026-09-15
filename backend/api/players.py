@@ -176,7 +176,13 @@ async def automatic_identity_status(video_id: str, db: AsyncSession = Depends(ge
         return job.result
     # Queued or mid-run: report honestly as processing rather than
     # inventing a track or a confidence the evidence hasn't produced.
-    return {**_IDENTITY_PROCESSING, "status_detail": job.message or _IDENTITY_PROCESSING["status_detail"]}
+    detail = job.message or _IDENTITY_PROCESSING["status_detail"]
+    if job.status == "queued" and not await store.any_worker_alive(db):
+        detail = (
+            "Waiting for an analysis worker. No worker is currently running, so jersey "
+            "identification has not started — it stays queued until one is available."
+        )
+    return {**_IDENTITY_PROCESSING, "status_detail": detail}
 
 
 @router.post("/{video_id}/tracks/{track_id}/assign")

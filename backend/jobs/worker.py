@@ -270,6 +270,14 @@ async def main() -> None:
     while True:
         try:
             now = asyncio.get_running_loop().time()
+
+            # Report liveness every cycle, before anything else can fail.
+            # This is what lets the API tell a member "nothing is
+            # processing film right now" instead of showing a progress bar
+            # that will never move.
+            async with async_session() as db:
+                await store.record_worker_heartbeat(db, worker_id, os.getenv("TRUGRADE_DEVICE", "auto"))
+
             if now - last_sweep >= STALE_SWEEP_EVERY_S:
                 last_sweep = now
                 async with async_session() as db:
