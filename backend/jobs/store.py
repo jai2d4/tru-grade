@@ -51,19 +51,43 @@ def as_dict(job: orm.AnalysisJob) -> dict:
     }
 
 
-async def enqueue(db: AsyncSession, video_id: str) -> orm.AnalysisJob:
-    """Queue a video for analysis. Returns immediately — no work is done
-    in this process; a worker picks it up."""
+async def enqueue(
+    db: AsyncSession,
+    video_id: str,
+    *,
+    job_type: str = "analysis",
+    payload: dict | None = None,
+    message: str = "Analysis queued.",
+) -> orm.AnalysisJob:
+    """Queue work for a video. Returns immediately — no work is done in
+    this process; a worker picks it up."""
     job = orm.AnalysisJob(
         video_id=uuid.UUID(str(video_id)),
+        job_type=job_type,
         status="queued",
         progress=0,
-        message="Analysis queued.",
+        message=message,
+        payload=payload,
     )
     db.add(job)
     await db.commit()
     await db.refresh(job)
     return job
+
+
+async def latest_for_video(db: AsyncSession, video_id: str, job_type: str) -> orm.AnalysisJob | None:
+    """The most recent job of a kind for a video — how the identity status
+    endpoint finds the run it should report on."""
+    try:
+        key = uuid.UUID(str(video_id))
+    except (ValueError, AttributeError, TypeError):
+        return None
+    return await db.scalar(
+        select(orm.AnalysisJob)
+        .where(orm.AnalysisJob.video_id == key, orm.AnalysisJob.job_type == job_type)
+        .order_by(orm.AnalysisJob.created_at.desc())
+        .limit(1)
+    )
 
 
 async def get(db: AsyncSession, job_id: str) -> orm.AnalysisJob | None:

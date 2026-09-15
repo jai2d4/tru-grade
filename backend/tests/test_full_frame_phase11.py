@@ -24,7 +24,8 @@ def fake_cv2(frame_count=5, fps=30):
         def release(self): pass
 
     return SimpleNamespace(CAP_PROP_FPS=1, CAP_PROP_FRAME_COUNT=2,
-                           VideoCapture=Capture, imwrite=lambda path, frame: True)
+                           VideoCapture=Capture, imwrite=lambda path, frame, params=None: True,
+                           IMWRITE_JPEG_QUALITY=1)
 
 
 def test_native_mode_extracts_every_source_frame(monkeypatch, tmp_path):

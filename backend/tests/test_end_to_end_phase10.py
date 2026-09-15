@@ -61,7 +61,8 @@ def test_upload_to_evidence_backed_truth_report(monkeypatch, tmp_path):
         CAP_PROP_FPS=1,
         CAP_PROP_FRAME_COUNT=2,
         VideoCapture=Capture,
-        imwrite=lambda path, frame: True,
+        imwrite=lambda path, frame, params=None: True,
+        IMWRITE_JPEG_QUALITY=1,
         imread=lambda path: object(),
     )
     monkeypatch.setitem(sys.modules, "cv2", fake_cv2)

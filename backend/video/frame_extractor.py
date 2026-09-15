@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 from pathlib import Path
 from typing import Callable
 
@@ -10,13 +12,26 @@ class FrameExtractionError(RuntimeError):
     pass
 
 
+# cv2's default JPEG quality is 95, which is near-lossless and enormous:
+# a 1080p frame lands around 1.3 MB, so native-rate extraction of a single
+# clip runs to tens of GB. Detection, tracking and OCR read these frames
+# as model input, not as anything a person looks at, and gain nothing from
+# quality 95. Override via FRAME_JPEG_QUALITY if a specific model ever
+# proves otherwise.
+DEFAULT_JPEG_QUALITY = 80
+
+
 class FrameExtractor:
-    def __init__(self, frames_root: Path, analysis_fps: float | None = None, checkpoint_every: int = 250):
+    def __init__(self, frames_root: Path, analysis_fps: float | None = None, checkpoint_every: int = 250,
+                 jpeg_quality: int | None = None):
         if analysis_fps is not None and analysis_fps <= 0:
             raise ValueError("analysis_fps must be positive")
         self.frames_root = Path(frames_root)
         self.analysis_fps = analysis_fps
         self.checkpoint_every = max(1, checkpoint_every)
+        if jpeg_quality is None:
+            jpeg_quality = int(os.getenv("FRAME_JPEG_QUALITY", str(DEFAULT_JPEG_QUALITY)))
+        self.jpeg_quality = max(1, min(100, jpeg_quality))
 
     def extract(self, video_id: str, video_path: Path, progress: Callable[[int], None] | None = None) -> list[dict]:
         import cv2
@@ -47,7 +62,8 @@ class FrameExtractor:
                 if frame_number + 1e-9 >= next_sample:
                     height, width = frame.shape[:2]
                     file_path = output_dir / f"frame-{frame_number:09d}.jpg"
-                    if not cv2.imwrite(str(file_path), frame):
+                    if not cv2.imwrite(str(file_path), frame,
+                                       [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality]):
                         raise FrameExtractionError(f"Could not write frame {frame_number}.")
                     frames.append({
                         "frame_number": frame_number,
@@ -68,3 +84,26 @@ class FrameExtractor:
         if progress:
             progress(100)
         return frames
+
+    def discard_frames(self, video_id: str) -> int:
+        """Delete the extracted JPEGs for a video, returning how many bytes
+        were freed.
+
+        Nothing used to clean these up, so every analyzed video left its
+        frames on disk forever — at native frame rate that is GB per clip.
+        They are an intermediate artifact: once detection, tracking and
+        identification have run, the evidence that matters lives in
+        tracks.json / detections.json / biomechanics.json.
+
+        The manifest and its completion marker are removed alongside the
+        images on purpose. Leaving them would make the resume path believe
+        extraction is still complete and hand downstream stages a list of
+        files that no longer exist; deleting them means a re-run simply
+        extracts again.
+        """
+        directory = self.frames_root / video_id
+        if not directory.is_dir():
+            return 0
+        freed = sum(f.stat().st_size for f in directory.glob("*") if f.is_file())
+        shutil.rmtree(directory, ignore_errors=True)
+        return freed

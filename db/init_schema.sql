@@ -334,6 +334,31 @@ CREATE INDEX IF NOT EXISTS idx_analysis_jobs_queued
     ON analysis_jobs (created_at) WHERE status = 'queued';
 CREATE INDEX IF NOT EXISTS idx_analysis_jobs_video_id ON analysis_jobs (video_id);
 
+-- The same queue also carries automatic jersey identification, which used
+-- to run in the web process too (and loaded every referenced frame into
+-- memory at once). job_type says which pipeline a row is for; payload
+-- carries that job's inputs, and result the outcome the web service hands
+-- back — the worker's own disk is not readable by the web service, so a
+-- result file would be invisible to the endpoint that has to serve it.
+-- Added by ALTER (not in CREATE TABLE above) so an already-deployed
+-- analysis_jobs table picks them up.
+ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS job_type TEXT NOT NULL DEFAULT 'analysis';
+ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS payload JSONB;
+ALTER TABLE analysis_jobs ADD COLUMN IF NOT EXISTS result  JSONB;
+
+ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS analysis_jobs_status_check;
+ALTER TABLE analysis_jobs ADD CONSTRAINT analysis_jobs_status_check CHECK (status IN (
+    'queued', 'claimed', 'running', 'extracting_frames', 'detecting', 'tracking',
+    'biomechanics', 'segmenting_plays', 'completed', 'failed'
+));
+ALTER TABLE analysis_jobs DROP CONSTRAINT IF EXISTS analysis_jobs_type_check;
+ALTER TABLE analysis_jobs ADD CONSTRAINT analysis_jobs_type_check
+    CHECK (job_type IN ('analysis', 'identity'));
+
+-- Serving GET /api/videos/{id}/identify: newest identity job for a video.
+CREATE INDEX IF NOT EXISTS idx_analysis_jobs_video_type_created
+    ON analysis_jobs (video_id, job_type, created_at DESC);
+
 -- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,

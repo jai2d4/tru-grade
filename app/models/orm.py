@@ -274,7 +274,12 @@ class AnalysisJob(Base):
 
     job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
     video_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # 'analysis' (the CV pipeline) or 'identity' (automatic jersey ID).
+    job_type: Mapped[str] = mapped_column(Text, nullable=False, default="analysis", server_default="analysis")
     status: Mapped[str] = mapped_column(Text, nullable=False, default="queued", server_default="queued")
+    # Inputs for this job, and the outcome the web service serves back.
+    payload: Mapped[dict | None] = mapped_column(JSONB)
+    result: Mapped[dict | None] = mapped_column(JSONB)
     progress: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
     message: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)

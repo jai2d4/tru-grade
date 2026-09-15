@@ -45,7 +45,8 @@ def test_frame_extraction_retains_frame_and_timestamp(monkeypatch, tmp_path):
 
     fake_cv2 = SimpleNamespace(
         CAP_PROP_FPS=1, CAP_PROP_FRAME_COUNT=2, VideoCapture=Capture,
-        imwrite=lambda path, frame: True,
+        imwrite=lambda path, frame, params=None: True,
+        IMWRITE_JPEG_QUALITY=1,
     )
     monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
     result = FrameExtractor(tmp_path / "frames", analysis_fps=10).extract("video-1", tmp_path / "film.mp4")

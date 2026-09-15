@@ -10,13 +10,11 @@ through /assign does that.
 """
 from __future__ import annotations
 
-import asyncio
 import json
-import os
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +27,7 @@ from backend.vision.field_calibration import (
     FieldCalibration, automatic_calibration_unavailable, automatic_field_calibration,
 )
 from backend.vision.jersey_identifier import TrackIdentity, confirm_identity
-from backend.vision.automatic_identity import EasyOCRJerseyReader, identify_player
+from backend.jobs import store
 
 
 router = APIRouter(prefix="/api/videos", tags=["players"])
@@ -63,12 +61,6 @@ def _require_video(video_id: str) -> dict:
 
 def _track_path(video_id: str) -> Path:
     return storage_root / "vision" / video_id / "tracks.json"
-
-
-def _identity_path(video_id: str) -> Path:
-    directory = storage_root / "identity"
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory / f"{video_id}.json"
 
 
 def _assignment_dict(row: orm.FilmTrackAssignment) -> dict:
@@ -123,43 +115,6 @@ async def _persist_automatic_assignment(video_id: str, track_id: int, request: A
         await session.commit()
 
 
-def _run_automatic_identity(video_id: str, request: AutomaticIdentityRequest) -> None:
-    """Runs in BackgroundTasks' threadpool (this function is sync on purpose —
-    cv2 decode and OCR are CPU-bound; making this async would run them
-    straight on the event loop and stall every other request meanwhile).
-    asyncio.run() for the small DB-persist step is safe here: this thread
-    has no event loop of its own to conflict with."""
-    import cv2
-    path = _identity_path(video_id)
-    try:
-        tracks = json.loads(_track_path(video_id).read_text(encoding="utf-8"))
-        manifest_path = storage_root / "frames" / video_id / "frames.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        frames = {}
-        wanted = {point["frame"] for track in tracks for point in track.get("positions", [])}
-        for item in manifest:
-            if item["frame_number"] in wanted:
-                image = cv2.imread(item["file_path"])
-                if image is not None:
-                    frames[item["frame_number"]] = image
-        result = identify_player(
-            request.jersey_number, request.school_colors, tracks, frames, EasyOCRJerseyReader(),
-            min_reads=int(os.getenv("JERSEY_ID_MIN_READS", "2")),
-            threshold=float(os.getenv("JERSEY_ID_CONFIDENCE", ".62")),
-            margin=float(os.getenv("JERSEY_ID_MARGIN", ".12")),
-        )
-        result.update(status_detail="Automatic multi-frame identification completed.",
-                      player_id=request.player_id, position=request.position)
-        if result["selected_track_id"] is not None:
-            asyncio.run(_persist_automatic_assignment(
-                video_id, result["selected_track_id"], request, result["confidence"],
-            ))
-    except Exception as exc:
-        result = {"status": "failed", "status_detail": "Automatic identification failed.",
-                  "error": str(exc), "selected_track_id": None, "confidence": 0}
-    path.write_text(json.dumps(result, indent=2), encoding="utf-8")
-
-
 @router.get("/{video_id}/tracks")
 async def get_tracks(video_id: str, db: AsyncSession = Depends(get_db)):
     _require_video(video_id)
@@ -185,26 +140,43 @@ async def get_biomechanics(video_id: str):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+_IDENTITY_PROCESSING = {
+    "status": "processing",
+    "status_detail": "Reading jersey numbers across tracked frames.",
+    "selected_track_id": None,
+    "confidence": 0,
+}
+
+
 @router.post("/{video_id}/identify", status_code=202)
 async def start_automatic_identity(video_id: str, request: AutomaticIdentityRequest,
-                                   background_tasks: BackgroundTasks):
+                                   db: AsyncSession = Depends(get_db)):
+    """Queues identification for a worker. This used to run inline via
+    BackgroundTasks, loading easyocr (and therefore torch) plus every
+    referenced frame into the web process — see docs/WORKER_SETUP_BRIEF.md
+    for why that cannot fit on the web instance."""
     _require_video(video_id)
     if not _track_path(video_id).is_file():
         raise HTTPException(409, "Detection and tracking must complete before identification.")
-    payload = {"status": "processing", "status_detail": "Reading jersey numbers across tracked frames.",
-               "selected_track_id": None, "confidence": 0}
-    _identity_path(video_id).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    background_tasks.add_task(_run_automatic_identity, video_id, request)
-    return payload
+    await store.enqueue(
+        db, video_id, job_type="identity",
+        payload=request.model_dump(),
+        message="Automatic identification queued.",
+    )
+    return _IDENTITY_PROCESSING
 
 
 @router.get("/{video_id}/identify")
-async def automatic_identity_status(video_id: str):
+async def automatic_identity_status(video_id: str, db: AsyncSession = Depends(get_db)):
     _require_video(video_id)
-    path = _identity_path(video_id)
-    if not path.is_file():
+    job = await store.latest_for_video(db, video_id, "identity")
+    if job is None:
         raise HTTPException(404, "Automatic identification has not started.")
-    return json.loads(path.read_text(encoding="utf-8"))
+    if job.result is not None:
+        return job.result
+    # Queued or mid-run: report honestly as processing rather than
+    # inventing a track or a confidence the evidence hasn't produced.
+    return {**_IDENTITY_PROCESSING, "status_detail": job.message or _IDENTITY_PROCESSING["status_detail"]}
 
 
 @router.post("/{video_id}/tracks/{track_id}/assign")

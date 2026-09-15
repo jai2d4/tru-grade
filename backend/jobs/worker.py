@@ -138,6 +138,74 @@ async def _run_job(job_id: str, video: dict, storage_root: Path) -> None:
         )
 
 
+def _identify_sync(payload: dict, storage_root: Path, video_id: str) -> dict:
+    """Automatic jersey identification. Synchronous and CPU-bound (OCR and
+    image decode), so the caller runs it via asyncio.to_thread.
+
+    Frames are read through LazyFrameStore rather than preloaded: the
+    previous in-process version decoded every referenced frame into a dict
+    first, which is gigabytes at 1080p.
+    """
+    from backend.vision.automatic_identity import EasyOCRJerseyReader, identify_player
+    from backend.vision.frame_source import LazyFrameStore
+
+    tracks = json.loads((storage_root / "vision" / video_id / "tracks.json").read_text(encoding="utf-8"))
+    manifest = json.loads((storage_root / "frames" / video_id / "frames.json").read_text(encoding="utf-8"))
+
+    result = identify_player(
+        payload["jersey_number"], payload["school_colors"], tracks,
+        LazyFrameStore(manifest), EasyOCRJerseyReader(),
+        min_reads=int(os.getenv("JERSEY_ID_MIN_READS", "2")),
+        threshold=float(os.getenv("JERSEY_ID_CONFIDENCE", ".62")),
+        margin=float(os.getenv("JERSEY_ID_MARGIN", ".12")),
+    )
+    result.update(
+        status_detail="Automatic multi-frame identification completed.",
+        player_id=payload.get("player_id"), position=payload.get("position"),
+    )
+    return result
+
+
+async def _run_identity_job(job_id: str, job_payload: dict, video_id: str, storage_root: Path) -> None:
+    """Identify the requested jersey, then persist the assignment if — and
+    only if — the evidence actually selected a track. An uncertain result
+    stays uncertain; it is never resolved by guessing."""
+    from backend.api.players import AutomaticIdentityRequest, _persist_automatic_assignment
+
+    async with async_session() as db:
+        await store.update(db, job_id, status="running", progress=5,
+                           message="Reading jersey numbers across tracked frames.")
+
+    result = await asyncio.to_thread(_identify_sync, job_payload, storage_root, video_id)
+
+    if result.get("selected_track_id") is not None:
+        await _persist_automatic_assignment(
+            video_id, result["selected_track_id"],
+            AutomaticIdentityRequest(**{
+                k: job_payload.get(k) for k in
+                ("jersey_number", "school_colors", "player_id", "position")
+            }),
+            result["confidence"],
+        )
+
+    async with async_session() as db:
+        await store.finish(db, job_id, status="completed", progress=100,
+                           result=result, message=result.get("status_detail"))
+
+    # Identification is the last stage that reads raw frames, so this is
+    # the earliest safe point to reclaim that disk. Off by default: field
+    # calibration still reads a frame straight off local disk
+    # (backend/api/players.py), and until result artifacts are shared
+    # between the two machines, deleting frames here would make that
+    # endpoint 409 instead of calibrating. Turn on once that is resolved.
+    if os.getenv("DISCARD_FRAMES_AFTER_IDENTITY", "false").lower() == "true":
+        from backend.video.frame_extractor import FrameExtractor
+
+        freed = FrameExtractor(storage_root / "frames").discard_frames(video_id)
+        if freed:
+            logger.info("reclaimed %.1f MB of extracted frames for %s", freed / 1e6, video_id)
+
+
 async def run_once(storage_root: Path, worker_id: str) -> bool:
     """Claim and run a single job. Returns True if one was processed, so
     the caller can poll again immediately instead of sleeping."""
@@ -166,14 +234,27 @@ async def run_once(storage_root: Path, worker_id: str) -> bool:
         return True
 
     try:
-        await _run_job(job_id, video, storage_root)
-        logger.info("completed job %s", job_id)
+        if job.job_type == "identity":
+            await _run_identity_job(job_id, job.payload or {}, video_id, storage_root)
+        else:
+            await _run_job(job_id, video, storage_root)
+        logger.info("completed %s job %s", job.job_type, job_id)
     except Exception as exc:  # one bad job must never take the worker down
         logger.exception("job %s failed", job_id)
+        failure = {
+            "status": "failed",
+            "status_detail": "Automatic identification failed.",
+            "error": str(exc), "selected_track_id": None, "confidence": 0,
+        }
         async with async_session() as db:
             await store.finish(
                 db, job_id, status="failed", error=str(exc),
-                message="Analysis failed and can be resumed.",
+                message=("Automatic identification failed."
+                         if job.job_type == "identity"
+                         else "Analysis failed and can be resumed."),
+                # The identity status endpoint serves `result` verbatim, so a
+                # failure has to be expressed there too — not only as a job error.
+                **({"result": failure} if job.job_type == "identity" else {}),
             )
     return True
 
