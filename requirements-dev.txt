@@ -1,3 +1,12 @@
+# Development and test dependencies.
+#
+# Includes the worker requirements on purpose. Roughly a third of the test
+# suite exercises the vision stack (frame extraction, calibration accuracy,
+# tracking) and uses pytest.importorskip("cv2") to skip gracefully when it
+# is absent. Without these, `pytest` reports a confident green while ~59
+# tests silently never ran — which is worse than a failure, because it
+# looks like coverage.
 -r requirements.txt
+-r requirements-worker.txt
 pytest>=8.0
 httpx>=0.27
