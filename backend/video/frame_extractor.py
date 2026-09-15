@@ -85,6 +85,31 @@ class FrameExtractor:
             progress(100)
         return frames
 
+    def keyframe_path(self, video_id: str) -> Path:
+        """Where the one preserved sample frame lives.
+
+        Field calibration only ever needs a single representative frame,
+        but it used to read one out of the full extracted set — which made
+        deleting that set break calibration. Keeping one small JPEG makes
+        the cleanup safe instead of mutually exclusive with it.
+        """
+        return self.frames_root.parent / "keyframes" / f"{video_id}.jpg"
+
+    def preserve_keyframe(self, video_id: str, manifest: list[dict]) -> Path | None:
+        """Copy the middle frame somewhere that survives discard_frames().
+        Middle rather than first: the opening frames of game film are often
+        a title card, a sideline pan, or an empty field."""
+        if not manifest:
+            return None
+        sample = manifest[len(manifest) // 2]
+        source = Path(sample["file_path"])
+        if not source.is_file():
+            return None
+        target = self.keyframe_path(video_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        return target
+
     def discard_frames(self, video_id: str) -> int:
         """Delete the extracted JPEGs for a video, returning how many bytes
         were freed.

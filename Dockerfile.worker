@@ -1,0 +1,34 @@
+# Analysis worker image — the computer-vision half.
+#
+# Separate from the web Dockerfile on purpose: this one carries torch,
+# ultralytics and easyocr (gigabytes), and the web image must not. It also
+# builds no frontend, since the worker serves nothing.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# ffmpeg for yt-dlp's stream merging; libgl/libglib are OpenCV's runtime
+# shared libraries, which the slim base image doesn't carry.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# TORCH_INDEX_URL decides CPU vs CUDA. Default is the CPU wheel: far
+# smaller, and correct for a machine without an NVIDIA GPU. On a GPU box,
+# build with the index matching the driver's CUDA version, e.g.
+#   docker build -f Dockerfile.worker \
+#     --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121 .
+# scripts/check_env.py reports which CUDA version the driver supports.
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
+COPY requirements.txt requirements-worker.txt ./
+# torch first from the chosen index, so the line below finds it already
+# satisfied instead of re-resolving to the default (CUDA) build.
+RUN pip install --no-cache-dir torch --index-url ${TORCH_INDEX_URL} \
+    && pip install --no-cache-dir -r requirements.txt -r requirements-worker.txt
+
+COPY . .
+
+# Not a server: no port, no health check endpoint. Liveness is visible in
+# the queue itself via each job's heartbeat.
+CMD ["python", "scripts/run_worker.py"]

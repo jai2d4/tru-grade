@@ -254,16 +254,37 @@ async def save_calibration(video_id: str, calibration: FieldCalibration):
 
 @router.post("/{video_id}/calibration/auto")
 async def create_automatic_calibration(video_id: str):
-    import cv2
+    try:
+        import cv2
+    except ImportError:
+        # OpenCV lives in requirements-worker.txt, so a web-only install
+        # doesn't have it. Say so honestly — manual field points still
+        # produce a real calibration — rather than 500ing.
+        return automatic_calibration_unavailable(
+            "Automatic calibration needs the vision dependencies, which are not installed here. "
+            "Confirm field points manually, or run this where the analysis worker runs."
+        )
     _require_video(video_id)
-    manifest_path = storage_root / "frames" / video_id / "frames.json"
-    if not manifest_path.is_file():
-        raise HTTPException(409, "Frame extraction must complete before calibration.")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not manifest:
-        raise HTTPException(409, "No extracted frames are available.")
-    sample = manifest[len(manifest) // 2]
-    frame = cv2.imread(sample["file_path"])
+    # Prefer the preserved keyframe: it survives frame cleanup, so
+    # calibration keeps working after the extracted set has been reclaimed
+    # (see FrameExtractor.preserve_keyframe).
+    from backend.video.frame_extractor import FrameExtractor
+
+    extractor = FrameExtractor(storage_root / "frames")
+    keyframe = extractor.keyframe_path(video_id)
+    sample_number: int | None = None
+    frame = cv2.imread(str(keyframe)) if keyframe.is_file() else None
+
+    if frame is None:
+        manifest_path = storage_root / "frames" / video_id / "frames.json"
+        if not manifest_path.is_file():
+            raise HTTPException(409, "Frame extraction must complete before calibration.")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not manifest:
+            raise HTTPException(409, "No extracted frames are available.")
+        sample = manifest[len(manifest) // 2]
+        sample_number = sample["frame_number"]
+        frame = cv2.imread(sample["file_path"])
     if frame is None:
         raise HTTPException(409, "The calibration frame is unavailable.")
     result = automatic_field_calibration(frame)
@@ -271,7 +292,7 @@ async def create_automatic_calibration(video_id: str):
         return result
     directory = storage_root / "calibrations"
     directory.mkdir(parents=True, exist_ok=True)
-    payload = {**result.model_dump(), "status": "calibrated", "sample_frame": sample["frame_number"],
+    payload = {**result.model_dump(), "status": "calibrated", "sample_frame": sample_number,
                "measurement_quality": "estimated",
                "measurement_note": "Confirm known field points to verify absolute yardage."}
     (directory / f"{video_id}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

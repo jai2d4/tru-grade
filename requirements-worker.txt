@@ -1,0 +1,33 @@
+# Analysis worker dependencies — the computer-vision stack.
+#
+# Install on the machine that runs scripts/run_worker.py, ON TOP of
+# requirements.txt (the worker also needs the app's config, ORM and DB
+# layer):
+#
+#     pip install -r requirements.txt -r requirements-worker.txt
+#
+# ---------------------------------------------------------------------
+# GPU vs CPU
+# ---------------------------------------------------------------------
+# Plain `pip install torch` pulls the CUDA build — roughly 19 nvidia/cuda
+# packages and gigabytes of libraries. That is correct on a machine with
+# an NVIDIA GPU and pure waste on one without.
+#
+# On a GPU machine, install torch FIRST from the wheel index matching the
+# driver's CUDA version (check with `nvidia-smi`, and see
+# scripts/check_env.py), then install this file:
+#
+#     pip install torch --index-url https://download.pytorch.org/whl/cu121
+#
+# On a CPU-only machine, do the same with the CPU index — much smaller
+# download and a far smaller resident footprint:
+#
+#     pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+# Either way pip then treats torch as satisfied and won't re-resolve it.
+# torch is intentionally left unpinned here so that choice is yours to
+# make per machine; everything else is pinned like the web deps.
+# ---------------------------------------------------------------------
+opencv-python==5.0.0.93
+ultralytics==8.4.150
+easyocr==1.7.2

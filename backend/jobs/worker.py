@@ -90,6 +90,9 @@ async def _run_job(job_id: str, video: dict, storage_root: Path) -> None:
         frames = await asyncio.to_thread(
             extractor.extract, video_id, Path(video["file_path"]), progress_cb
         )
+        # One small JPEG kept aside so field calibration still works after
+        # the full extracted set is reclaimed.
+        await asyncio.to_thread(extractor.preserve_keyframe, video_id, frames)
     else:
         await report(message="Resuming from completed frame extraction.", frame_count=len(frames))
 
@@ -193,12 +196,10 @@ async def _run_identity_job(job_id: str, job_payload: dict, video_id: str, stora
                            result=result, message=result.get("status_detail"))
 
     # Identification is the last stage that reads raw frames, so this is
-    # the earliest safe point to reclaim that disk. Off by default: field
-    # calibration still reads a frame straight off local disk
-    # (backend/api/players.py), and until result artifacts are shared
-    # between the two machines, deleting frames here would make that
-    # endpoint 409 instead of calibrating. Turn on once that is resolved.
-    if os.getenv("DISCARD_FRAMES_AFTER_IDENTITY", "false").lower() == "true":
+    # the safe point to reclaim that disk. Calibration keeps working
+    # because extraction preserved a keyframe (see preserve_keyframe), and
+    # the frames themselves are re-derivable from the source video.
+    if os.getenv("DISCARD_FRAMES_AFTER_IDENTITY", "true").lower() == "true":
         from backend.video.frame_extractor import FrameExtractor
 
         freed = FrameExtractor(storage_root / "frames").discard_frames(video_id)

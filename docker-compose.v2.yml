@@ -1,0 +1,69 @@
+# TruGrade, whole stack, on one machine (the V2 box).
+#
+# Web and worker share a filesystem here, which is what the storage layer
+# has always assumed: tracks, detections, biomechanics, plays, evidence
+# and the film itself are read straight off disk by both. That is also
+# what removes the upload-size problem — film is uploaded to this host
+# directly, never through a PaaS proxy.
+#
+#   docker compose -f docker-compose.v2.yml up -d --build
+#
+# GPU: uncomment the `deploy.resources` block under `worker` once the
+# NVIDIA Container Toolkit is installed. Without it the worker still runs,
+# on CPU, just slower — run scripts/check_env.py to see what this machine
+# actually offers.
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_KEY: ${VITE_API_KEY:-}
+    restart: unless-stopped
+    ports:
+      # Bound to localhost on purpose: cloudflared is what faces the
+      # internet, so nothing here needs a public port or a firewall hole.
+      - "127.0.0.1:8000:8000"
+    environment:
+      PORT: 8000
+      APP_ENV: ${APP_ENV:-production}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      API_KEY: ${API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+      TRUGRADE_STORAGE_DIR: /data
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-2048}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - filmdata:/data
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    # No ports: the worker polls the queue outbound and serves nothing.
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+      TRUGRADE_STORAGE_DIR: /data
+      ANALYSIS_FPS: ${ANALYSIS_FPS:-native}
+      ENABLE_BIOMECHANICS: ${ENABLE_BIOMECHANICS:-true}
+      TRUGRADE_DEVICE: ${TRUGRADE_DEVICE:-auto}
+      DISCARD_FRAMES_AFTER_IDENTITY: ${DISCARD_FRAMES_AFTER_IDENTITY:-true}
+      FRAME_JPEG_QUALITY: ${FRAME_JPEG_QUALITY:-80}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      # Same volume as web — one filesystem, which is the whole point.
+      - filmdata:/data
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  filmdata:
