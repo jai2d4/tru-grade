@@ -51,16 +51,20 @@ python -m pip install -r requirements-worker.txt
 
 if not exist ".env" copy ".env.example" ".env" >nul
 
+rem Ask for the two values that can't be derived, and write .env directly —
+rem hand-editing a config file is the step most likely to go wrong.
+echo.
+python "%~dp0scripts\configure.py"
+
+echo.
+echo === Applying database schema ===
+python "%~dp0scripts\init_db.py"
+
 echo.
 echo ========================================================
-echo Setup complete.
+echo Setup complete. Start the app with:
 echo.
-echo NEXT: edit .env and set at minimum
-echo   GEMINI_API_KEY   - the only paid external API
-echo   API_KEY          - any strong random secret
-echo   DATABASE_URL     - your Postgres connection string
+echo     run_trugrade.bat
 echo.
-echo Then run:  scripts\check_env.py   to confirm the GPU is usable
-echo Then run:  run_trugrade.bat       to start the app
 echo ========================================================
 endlocal
