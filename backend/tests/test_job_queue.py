@@ -268,3 +268,106 @@ def test_completed_jobs_are_never_resurrected_by_the_stale_sweep():
             return await store.get(db, job_id)
 
     assert _run(scenario()).status == "completed"
+
+
+# ---------- poison-pill protection ----------
+
+
+def test_a_job_that_keeps_killing_workers_is_eventually_failed_not_retried_forever():
+    """The failure this guards against is specific and silent.
+
+    A job that kills its worker hard — OOM on an oversized film, a
+    segfault, the box rebooting — never reaches the handler that marks it
+    failed. requeue_stale() puts it back, the next worker dies the same
+    way, and because claiming takes the OLDEST job first, that one upload
+    blocks the whole queue indefinitely.
+    """
+    from backend.jobs.store import MAX_ATTEMPTS
+
+    async def scenario():
+        async with async_session() as db:
+            job = await store.enqueue(db, str(uuid4()))
+            job_id = str(job.job_id)
+
+        # Each round: a worker claims it, then dies without reporting.
+        for _ in range(MAX_ATTEMPTS):
+            async with async_session() as db:
+                await store.claim_next(db, "doomed-worker")
+            async with async_session() as db:
+                await store.update(
+                    db, job_id, status="detecting",
+                    heartbeat_at=datetime.now(timezone.utc) - timedelta(hours=1),
+                )
+            async with async_session() as db:
+                await store.requeue_stale(db)
+
+        async with async_session() as db:
+            return await store.get(db, job_id)
+
+    job = _run(scenario())
+    assert job.status == "failed", (
+        f"after {MAX_ATTEMPTS} worker deaths the job is still {job.status!r} — "
+        "it would keep taking down workers and blocking the queue"
+    )
+    assert job.attempts >= MAX_ATTEMPTS
+    assert job.claimed_by is None
+    assert "Gave up after" in (job.error or "")
+
+
+def test_a_job_under_the_attempt_cap_is_still_retried():
+    """One transient crash (a reboot, a blip) must not condemn a job."""
+    async def scenario():
+        async with async_session() as db:
+            job = await store.enqueue(db, str(uuid4()))
+            job_id = str(job.job_id)
+        async with async_session() as db:
+            await store.claim_next(db, "unlucky-worker")
+        async with async_session() as db:
+            await store.update(
+                db, job_id, status="detecting",
+                heartbeat_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            )
+        async with async_session() as db:
+            await store.requeue_stale(db)
+        async with async_session() as db:
+            return await store.get(db, job_id)
+
+    job = _run(scenario())
+    assert job.status == "queued"
+    assert job.attempts == 1
+    assert "returned to the queue" in (job.message or "")
+
+
+def test_an_exhausted_job_stops_blocking_the_rest_of_the_queue():
+    """The point of failing it: work behind the poison pill must move."""
+    from backend.jobs.store import MAX_ATTEMPTS
+
+    async def scenario():
+        async with async_session() as db:
+            poison = await store.enqueue(db, str(uuid4()))
+            poison_id = str(poison.job_id)
+        async with async_session() as db:
+            healthy = await store.enqueue(db, str(uuid4()))
+            healthy_id = str(healthy.job_id)
+
+        for _ in range(MAX_ATTEMPTS):
+            async with async_session() as db:
+                claimed = await store.claim_next(db, "doomed")
+            async with async_session() as db:
+                await store.update(
+                    db, str(claimed.job_id), status="detecting",
+                    heartbeat_at=datetime.now(timezone.utc) - timedelta(hours=1),
+                )
+            async with async_session() as db:
+                await store.requeue_stale(db)
+
+        # The next claim must be the healthy job, not the poison one again.
+        async with async_session() as db:
+            nxt = await store.claim_next(db, "fresh-worker")
+        return poison_id, healthy_id, str(nxt.job_id) if nxt else None
+
+    poison_id, healthy_id, claimed_next = _run(scenario())
+    assert claimed_next == healthy_id, (
+        "the exhausted job was claimed again instead of the healthy one behind it"
+    )
+    assert claimed_next != poison_id

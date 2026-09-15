@@ -13,6 +13,7 @@ so moving the queue into Postgres is invisible to the UI.
 """
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -30,6 +31,17 @@ STALE_AFTER = timedelta(minutes=10)
 
 # Terminal states — nothing reclaims or retries these.
 _TERMINAL = frozenset({"completed", "failed"})
+
+# How many times a job may be handed to a worker before it is treated as
+# the cause rather than the victim.
+#
+# A job that kills its worker *hard* — an OOM kill on an oversized film, a
+# segfault, the machine rebooting — never reaches the handler that would
+# mark it failed. The process simply dies, requeue_stale() returns the job
+# to the queue, and the next worker dies the same way. Because claiming
+# takes the oldest job first, one poisonous upload would otherwise stall
+# processing for everyone, indefinitely and silently.
+MAX_ATTEMPTS = int(os.getenv("JOB_MAX_ATTEMPTS", "3"))
 
 
 def as_dict(job: orm.AnalysisJob) -> dict:
@@ -167,25 +179,48 @@ async def requeue_stale(db: AsyncSession, stale_after: timedelta = STALE_AFTER) 
     that never moves.
     """
     cutoff = datetime.now(timezone.utc) - stale_after
+    now = datetime.now(timezone.utc)
+    stalled = (
+        orm.AnalysisJob.status.not_in(_TERMINAL),
+        orm.AnalysisJob.status != "queued",
+        orm.AnalysisJob.heartbeat_at.is_not(None),
+        orm.AnalysisJob.heartbeat_at < cutoff,
+    )
+
+    # Give up on a job that has already taken down MAX_ATTEMPTS workers.
+    # Failing it honestly is strictly better than retrying forever: the
+    # member is told, and the rest of the queue moves again.
+    exhausted = await db.execute(
+        sql_update(orm.AnalysisJob)
+        .where(*stalled, orm.AnalysisJob.attempts >= MAX_ATTEMPTS)
+        .values(
+            status="failed",
+            claimed_by=None,
+            claimed_at=None,
+            message="Analysis stopped after repeated failures.",
+            error=(
+                f"Gave up after {MAX_ATTEMPTS} attempts — each worker stopped responding "
+                f"while processing this job. The film may be too large for the worker "
+                f"machine, or corrupt."
+            ),
+            updated_at=now,
+        )
+    )
+
     result = await db.execute(
         sql_update(orm.AnalysisJob)
-        .where(
-            orm.AnalysisJob.status.not_in(_TERMINAL),
-            orm.AnalysisJob.status != "queued",
-            orm.AnalysisJob.heartbeat_at.is_not(None),
-            orm.AnalysisJob.heartbeat_at < cutoff,
-        )
+        .where(*stalled, orm.AnalysisJob.attempts < MAX_ATTEMPTS)
         .values(
             status="queued",
             claimed_by=None,
             claimed_at=None,
             heartbeat_at=None,
             message="Previous worker stopped responding; returned to the queue.",
-            updated_at=datetime.now(timezone.utc),
+            updated_at=now,
         )
     )
     await db.commit()
-    return result.rowcount or 0
+    return (result.rowcount or 0) + (exhausted.rowcount or 0)
 
 
 # ---------------------------------------------------------------------
