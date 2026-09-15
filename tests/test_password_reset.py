@@ -3,8 +3,10 @@ Real DB — mirrors test_auth.py. APP_ENV defaults to "development" in tests
 (a local environment), so the local dev-fallback path (no SMTP configured,
 the reset link comes back directly instead of being emailed) is what's
 exercised here — the same code path a real SMTP-configured deployment
-would run, minus the actual send. Each test uses its own email (the DB
-persists across tests in one run, same as test_auth.py)."""
+would run, minus the actual send. Each test uses its own email, and the
+autouse clean_accounts_tables fixture (see conftest.py) truncates the
+accounts tables before every test, so this file is safe to run any number
+of times against the same database."""
 import re
 from datetime import timedelta
 
@@ -12,7 +14,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _skip_without_db(db_available):
+def _skip_without_db(db_available, clean_accounts_tables):
     available, reason = db_available
     if not available:
         pytest.skip(f"No PostgreSQL reachable — set POSTGRES_* env vars to run these tests. ({reason})")

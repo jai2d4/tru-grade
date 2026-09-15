@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Position(str, Enum):
@@ -76,8 +76,7 @@ class Athlete(AthleteCreate):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MetricCheck(BaseModel):
@@ -139,8 +138,7 @@ class BoardEntryOut(BaseModel):
     last_name: Optional[str] = None
     position: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TeamNeedIn(BaseModel):
@@ -152,8 +150,7 @@ class TeamNeedOut(BaseModel):
     priority: int
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CoachNoteIn(BaseModel):
@@ -168,8 +165,7 @@ class CoachNoteOut(BaseModel):
     note: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CoachFitScoresIn(BaseModel):
@@ -183,8 +179,7 @@ class CoachFitScoresOut(CoachFitScoresIn):
     athlete_id: UUID
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EvaluationOut(BaseModel):
@@ -208,8 +203,7 @@ class EvaluationOut(BaseModel):
     model_used: str = "gemini-3.5-flash"
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CoachDashboard(BaseModel):
@@ -306,8 +300,7 @@ class CurrentUser(BaseModel):
     athlete_id: Optional[UUID] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ForgotPasswordRequest(BaseModel):

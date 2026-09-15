@@ -1,13 +1,19 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-python-multipart>=0.0.9
-pydantic>=2.7
-pydantic-settings>=2.3
-google-genai>=1.0
-asyncpg>=0.29
-sqlalchemy[asyncio]>=2.0
-opencv-python>=4.10
-numpy>=1.26
-ultralytics>=8.3
-easyocr>=1.7.2
-yt-dlp>=2024.8.6
+# Pinned to the exact versions the test suite and this build were last
+# verified against — floating >= constraints meant a fresh `pip install`
+# (e.g. a new Render build) could silently resolve different versions of
+# opencv/numpy/ultralytics with no code change and no record of what
+# changed. Bump deliberately: change a version here, run the full test
+# suite, commit both together.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-multipart==0.0.32
+pydantic==2.13.5
+pydantic-settings==2.15.0
+google-genai==2.23.0
+asyncpg==0.31.0
+sqlalchemy[asyncio]==2.0.52
+opencv-python==5.0.0.93
+numpy==2.4.6
+ultralytics==8.4.150
+easyocr==1.7.2
+yt-dlp==2026.8.19

@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _skip_without_db(db_available):
+def _skip_without_db(db_available, clean_accounts_tables):
     available, reason = db_available
     if not available:
         pytest.skip(f"No PostgreSQL reachable — set POSTGRES_* env vars to run these tests. ({reason})")

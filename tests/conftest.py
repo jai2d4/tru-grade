@@ -67,6 +67,51 @@ def api_key_required(monkeypatch):
     return "test-shared-key"
 
 
+@pytest.fixture
+def clean_accounts_tables(db_available):
+    """Truncates users/athletes (and everything that cascades from them —
+    sessions, reset tokens, board entries, etc.) before the test runs.
+
+    test_auth.py and test_password_reset.py assert against fixed emails and
+    exact row counts. Those only hold on a truly empty table: the previous
+    fix (unique emails per test *function*) only solved collisions within
+    one pytest invocation — the underlying Postgres data directory survives
+    a service restart and even a fresh container reusing the same disk, so
+    a second `pytest` run against the same database still collided on the
+    same literals. This makes the suite idempotent — safe to run any number
+    of times against the same database — the same way db_available pings
+    with a standalone asyncpg connection rather than the shared engine, to
+    avoid poisoning that engine's pool for the tests that run afterward."""
+    available, _ = db_available
+    if not available:
+        yield
+        return
+
+    import asyncio
+    import asyncpg
+    from app.core.config import get_settings
+
+    settings = get_settings()
+
+    async def _truncate():
+        conn = await asyncpg.connect(
+            host=settings.POSTGRES_HOST, port=settings.POSTGRES_PORT,
+            user=settings.POSTGRES_USER, password=settings.POSTGRES_PASSWORD,
+            database=settings.POSTGRES_DB,
+        )
+        try:
+            await conn.execute("TRUNCATE athletes, users CASCADE")
+        finally:
+            await conn.close()
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(_truncate())
+    finally:
+        loop.close()
+    yield
+
+
 @pytest.fixture(scope="session")
 def db_available():
     """Skips DB-dependent tests gracefully when no PostgreSQL is reachable —
