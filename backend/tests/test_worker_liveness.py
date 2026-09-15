@@ -54,8 +54,18 @@ def _sql(query: str, *args):
 
 
 @pytest.fixture(autouse=True)
-def _no_workers():
-    """Every test starts with nobody home, and leaves nothing behind."""
+def _no_workers(db_available):
+    """Every test starts with nobody home, and leaves nothing behind.
+
+    Gated on db_available so that without a database these tests SKIP
+    rather than ERROR. A fixture that raises turns "this suite needs
+    Postgres" into 12 red errors, which reads like broken code and buries
+    whatever actually failed.
+    """
+    available, _ = db_available
+    if not available:
+        yield
+        return
     _sql("DELETE FROM worker_heartbeats")
     yield
     _sql("DELETE FROM worker_heartbeats")

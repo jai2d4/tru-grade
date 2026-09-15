@@ -175,3 +175,143 @@ def test_save_still_works_unchanged_after_the_refactor(tmp_path):
     assert result["status"] == "uploaded"
     assert result["filename"] == "Game Film.MKV"
     assert store.get(result["video_id"])["size_bytes"] == 13
+
+
+# ---------- YouTube's anti-bot challenge ----------
+#
+# The failure seen in real use: YouTube refuses an anonymous download with
+# "Sign in to confirm you're not a bot". This is YouTube declining to
+# serve the server, not a fault in the link or the film, and the previous
+# code relayed yt-dlp's raw message telling the operator to go read a wiki
+# page — which is not an answer they can act on.
+
+
+BOT_MESSAGE = (
+    "ERROR: [youtube] Jv78FCb9KM8: Sign in to confirm you're not a bot. "
+    "Use --cookies-from-browser or --cookies for the authentication."
+)
+
+
+def test_it_retries_with_another_client_when_one_is_challenged():
+    """YouTube challenges its own clients inconsistently, so a block on one
+    rarely means a block on all. Give up after the first and downloads fail
+    that would have succeeded."""
+    attempts = []
+    original = FakeYoutubeDL.extract_info
+
+    def flaky(self, url, download=True):
+        client = (self.opts.get("extractor_args", {})
+                      .get("youtube", {}).get("player_client", [None]))[0]
+        attempts.append(client)
+        if client != "android":
+            raise FakeDownloadError(BOT_MESSAGE)
+        return original(self, url, download)
+
+    FakeYoutubeDL.extract_info = flaky
+    try:
+        path, filename = youtube.download("https://youtu.be/dQw4w9WgXcQ", max_upload_mb=500)
+        path.unlink(missing_ok=True)
+    finally:
+        FakeYoutubeDL.extract_info = original
+
+    assert "android" in attempts
+    assert len(attempts) > 1, "gave up without trying another client"
+
+
+def test_when_every_client_is_challenged_the_error_says_what_to_do():
+    _BEHAVIOR["mode"] = "generic_error"
+    original = FakeYoutubeDL.extract_info
+
+    def always_challenged(self, url, download=True):
+        raise FakeDownloadError(BOT_MESSAGE)
+
+    FakeYoutubeDL.extract_info = always_challenged
+    try:
+        with pytest.raises(HTTPException) as excinfo:
+            youtube.download("https://youtu.be/dQw4w9WgXcQ", max_upload_mb=500)
+    finally:
+        FakeYoutubeDL.extract_info = original
+
+    detail = excinfo.value.detail
+    # The operator needs the workaround, not a wiki link.
+    assert "Upload the video file directly" in detail
+    # And it must not read as though their film or link is at fault.
+    assert "not a problem with the film" in detail
+
+
+def test_an_oversized_video_fails_immediately_without_retrying():
+    """Size is a settled fact — no other client returns a smaller file, so
+    retrying would just be slow."""
+    attempts = []
+    original = FakeYoutubeDL.extract_info
+
+    def too_big(self, url, download=True):
+        attempts.append(1)
+        raise FakeDownloadError("ERROR: File is larger than max-filesize (100000 bytes)")
+
+    FakeYoutubeDL.extract_info = too_big
+    try:
+        with pytest.raises(HTTPException) as excinfo:
+            youtube.download("https://youtu.be/dQw4w9WgXcQ", max_upload_mb=1)
+    finally:
+        FakeYoutubeDL.extract_info = original
+
+    assert excinfo.value.status_code == 413
+    assert len(attempts) == 1, "retried a failure that cannot change"
+
+
+def test_a_private_video_is_explained_rather_than_relayed():
+    original = FakeYoutubeDL.extract_info
+
+    def private(self, url, download=True):
+        raise FakeDownloadError("ERROR: [youtube] abc: Private video. Sign in if you've been granted access")
+
+    FakeYoutubeDL.extract_info = private
+    try:
+        with pytest.raises(HTTPException) as excinfo:
+            youtube.download("https://youtu.be/abc", max_upload_mb=500)
+    finally:
+        FakeYoutubeDL.extract_info = original
+
+    assert "unlisted rather than private" in excinfo.value.detail
+
+
+def test_cookies_from_a_browser_are_passed_through_when_configured(monkeypatch):
+    """Signing the server in is what reliably clears the challenge."""
+    monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "chrome")
+    seen = {}
+    original = FakeYoutubeDL.__init__
+
+    def capture(self, opts):
+        seen.update(opts)
+        original(self, opts)
+
+    FakeYoutubeDL.__init__ = capture
+    try:
+        path, _ = youtube.download("https://youtu.be/dQw4w9WgXcQ", max_upload_mb=500)
+        path.unlink(missing_ok=True)
+    finally:
+        FakeYoutubeDL.__init__ = original
+
+    assert seen.get("cookiesfrombrowser") == ("chrome", None, None, None)
+
+
+def test_no_cookie_options_are_sent_when_nothing_is_configured(monkeypatch):
+    monkeypatch.delenv("YTDLP_COOKIES_FROM_BROWSER", raising=False)
+    monkeypatch.delenv("YTDLP_COOKIE_FILE", raising=False)
+    seen = {}
+    original = FakeYoutubeDL.__init__
+
+    def capture(self, opts):
+        seen.update(opts)
+        original(self, opts)
+
+    FakeYoutubeDL.__init__ = capture
+    try:
+        path, _ = youtube.download("https://youtu.be/dQw4w9WgXcQ", max_upload_mb=500)
+        path.unlink(missing_ok=True)
+    finally:
+        FakeYoutubeDL.__init__ = original
+
+    assert "cookiesfrombrowser" not in seen
+    assert "cookiefile" not in seen
