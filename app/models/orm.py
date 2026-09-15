@@ -263,3 +263,28 @@ class PasswordResetToken(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AnalysisJob(Base):
+    """One V2 film-analysis job. Shared state between the web service
+    (which enqueues) and the GPU worker (which claims and runs it) — see
+    the schema comment in db/init_schema.sql for why this can't be a file
+    on the web service's disk."""
+    __tablename__ = "analysis_jobs"
+
+    job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
+    video_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="queued", server_default="queued")
+    progress: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    message: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+    frame_count: Mapped[int | None]
+    detection_frames: Mapped[int | None]
+    track_count: Mapped[int | None]
+    biomechanics: Mapped[bool | None] = mapped_column(Boolean)
+    claimed_by: Mapped[str | None] = mapped_column(Text)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -35,6 +35,17 @@ async def get_db() -> AsyncIterator[AsyncSession]:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
 
+def async_session() -> AsyncSession:
+    """A plain session for code that isn't a FastAPI route — notably the
+    analysis worker (backend/jobs/worker.py), which has no request to hang
+    a dependency off. Use as `async with async_session() as db:`.
+
+    Unlike get_db() this doesn't translate connection errors into HTTP
+    503s: the worker has no HTTP caller to answer, and it needs the real
+    exception so its retry loop can log it and back off."""
+    return _SessionLocal()
+
+
 @asynccontextmanager
 async def best_effort_session() -> AsyncIterator[AsyncSession | None]:
     """For call sites that should persist opportunistically (e.g. truth-report)

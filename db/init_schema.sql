@@ -289,6 +289,52 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens (user_id);
 
 -- ------------------------------------------------------------
+-- Analysis job queue (V2 film pipeline)
+--
+-- This replaces the previous storage/jobs/*.json files. Job state has to
+-- live somewhere BOTH machines can see: the Render web service enqueues,
+-- and a separate GPU worker (see docs/WORKER_SETUP_BRIEF.md) claims and
+-- runs the work. Files on the web service's own ephemeral disk are
+-- invisible to that worker — and are destroyed on every deploy anyway.
+--
+-- Claiming uses SELECT ... FOR UPDATE SKIP LOCKED so two workers can
+-- never take the same job. heartbeat_at is what makes a crashed worker
+-- recoverable: a claimed job whose heartbeat has gone stale is returned
+-- to the queue rather than being stuck "running" forever.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS analysis_jobs (
+    job_id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    -- Not a film_uploads FK: the local VideoStore is the system of record
+    -- for whether the file exists, and a job may outlive its row.
+    video_id         UUID NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'queued',
+    progress         INT  NOT NULL DEFAULT 0,
+    message          TEXT,
+    error            TEXT,
+    -- Pipeline counters, surfaced verbatim by GET /api/analysis/status.
+    frame_count      INT,
+    detection_frames INT,
+    track_count      INT,
+    biomechanics     BOOLEAN,
+    -- Which worker holds this job, and when it last proved it was alive.
+    claimed_by       TEXT,
+    claimed_at       TIMESTAMPTZ,
+    heartbeat_at     TIMESTAMPTZ,
+    attempts         INT NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT analysis_jobs_status_check CHECK (status IN (
+        'queued', 'claimed', 'extracting_frames', 'detecting', 'tracking',
+        'biomechanics', 'segmenting_plays', 'completed', 'failed'
+    ))
+);
+
+-- The worker's hot path: oldest queued job first.
+CREATE INDEX IF NOT EXISTS idx_analysis_jobs_queued
+    ON analysis_jobs (created_at) WHERE status = 'queued';
+CREATE INDEX IF NOT EXISTS idx_analysis_jobs_video_id ON analysis_jobs (video_id);
+
+-- ------------------------------------------------------------
 -- Module 6: Profile & Makeup grade-down reference (not a table —
 -- the shift is computed in app/services/makeup_grade.py). Rank scale,
 -- best to worst: GAME_CHANGER, ALL_CONF, WIN_PLUS, WIN, WIN_MINUS, NGE.

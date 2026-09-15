@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from backend.api.analysis import _analysis_fps
+from backend.jobs.worker import _analysis_fps
 from backend.video.frame_extractor import FrameExtractor
 from backend.vision.detector import DetectorUnavailable, FootballDetector
 
